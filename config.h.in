@@ -1,0 +1,5 @@
+#pragma once
+
+#define SPORTSED_VERSION "@PROJECT_VERSION@"
+
+#cmakedefine SPORTSED_DEBUG
