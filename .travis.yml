@@ -1,0 +1,142 @@
+language: cpp
+
+cache:
+  - pip
+  - directories:
+    - .cache/wget
+    - .conan/data
+
+matrix:
+  include:
+    - os: linux
+      env: MATRIX_EVAL="CC=gcc-4.9 CXX=g++-4.9 CMAKE_BUILD_TYPE=Release"
+      addons:
+        apt:
+          sources:
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - g++-4.9
+    - os: linux
+      env: MATRIX_EVAL="CC=gcc-5 CXX=g++-5 CMAKE_BUILD_TYPE=Release"
+      addons:
+        apt:
+          sources:
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - g++-5
+    - os: linux
+      env: MATRIX_EVAL="CC=gcc-5 CXX=g++-5 CMAKE_BUILD_TYPE=Debug"
+      addons:
+        apt:
+          sources:
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - g++-5
+    - os: linux
+      env: MATRIX_EVAL="CC=gcc-6 CXX=g++-6 CMAKE_BUILD_TYPE=Release"
+      addons:
+        apt:
+          sources:
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - g++-6
+    - os: linux
+      env: MATRIX_EVAL="CC=clang-3.6 CXX=clang++-3.6 CMAKE_BUILD_TYPE=Release"
+      addons:
+        apt:
+          sources:
+          - llvm-toolchain-precise-3.6
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - clang-3.6
+    - os: linux
+      env: MATRIX_EVAL="CC=clang-3.7 CXX=clang++-3.7 CMAKE_BUILD_TYPE=Release"
+      addons:
+        apt:
+          sources:
+          - llvm-toolchain-precise-3.7
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - clang-3.7
+    - os: linux
+      env: MATRIX_EVAL="CC=clang-3.8 CXX=clang++-3.8 CMAKE_BUILD_TYPE=Release"
+      addons:
+        apt:
+          sources:
+          - llvm-toolchain-precise-3.8
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - clang-3.8
+    - os: linux
+      env: MATRIX_EVAL="CC=clang-3.9 CXX=clang++-3.9 CMAKE_BUILD_TYPE=Release"
+      addons:
+        apt:
+          sources:
+          - llvm-toolchain-trusty-3.9
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - clang-3.9
+    - os: linux
+      env: MATRIX_EVAL="CC=clang-4.0 CXX=clang++-4.0 CMAKE_BUILD_TYPE=Release"
+      addons:
+        apt:
+          sources:
+          - llvm-toolchain-trusty-4.0
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - clang-4.0
+    - os: linux
+      env: MATRIX_EVAL="CC=clang-5.0 CXX=clang++-5.0 CMAKE_BUILD_TYPE=Release"
+      addons:
+        apt:
+          sources:
+          - llvm-toolchain-trusty-5.0
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - clang-5.0
+    - os: linux
+      env: MATRIX_EVAL="CC=clang-5.0 CXX=clang++-5.0 CMAKE_BUILD_TYPE=Debug"
+      addons:
+        apt:
+          sources:
+          - llvm-toolchain-trusty-5.0
+          - ubuntu-toolchain-r-test
+          packages:
+          - libboost-all-dev
+          - clang-5.0
+
+before_install:
+  - eval "${MATRIX_EVAL}"
+  - sudo add-apt-repository -y ppa:beineri/opt-qt591-trusty
+  - sudo apt-get update
+  - export PATH=$HOME/.local/bin:$PATH # this makes the --user option to pip install work
+  
+install:
+  - CMAKE_VERSION=3.9.4 CMAKE_SHORT_VERSION=3.9
+  - sudo apt-get install -yq qt59base
+  - source /opt/qt59/bin/qt59-env.sh
+  - wget -c -N -O .cache/wget/cmake-${CMAKE_VERSION}.tar.gz https://cmake.org/files/v${CMAKE_SHORT_VERSION}/cmake-${CMAKE_VERSION}-Linux-x86_64.tar.gz
+  - tar -xf .cache/wget/cmake-${CMAKE_VERSION}.tar.gz && mv cmake-${CMAKE_VERSION}-Linux-x86_64 cmake
+  - PATH=`pwd`/cmake/bin:$PATH
+  - pip install --user `whoami` conan
+  - mkdir -p $HOME/.conan && wget -O $HOME/.conan/settings.yml https://gist.githubusercontent.com/02JanDal/6e5f38ac3f08a74ee42698e6f7c01755/raw/aafed6edbbb2648ec269e4793407b54c6038d199/settings.yml
+  - wget -O .cache/wget/jdutil.zip https://github.com/02JanDal/jd-util/archive/master.zip
+  - unzip .cache/wget/jdutil.zip
+  - JD_UTIL_PATH=`pwd`/jd-util-master
+
+before_script:
+  - mkdir build && cd build
+  - cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DJD_UTIL_PATH=${JD_UTIL_PATH} ..
+
+script:
+  - cmake --build . -- -j3

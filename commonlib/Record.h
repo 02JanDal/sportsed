@@ -7,7 +7,7 @@
 
 #if __has_include(<optional>)
 #include <optional>
-#elif defined(__cpp_lib_experimental_optional)
+#elif __has_include(<experimental/optional>)
 #include <experimental/optional>
 namespace std {
 using experimental::optional;
