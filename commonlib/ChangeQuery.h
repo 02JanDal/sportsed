@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QVector>
+#include <QJsonObject>
 
 #include "TableQuery.h"
 #include "Record.h"
@@ -13,7 +14,7 @@ class Change;
 class ChangeQuery
 {
 public:
-	explicit ChangeQuery();
+	explicit ChangeQuery(const QVector<TableQuery> &query = {}, const Revision from = 0);
 
 	Revision fromRevision() const { return m_fromRevision; }
 	void setFromRevision(const Revision revision) { m_fromRevision = revision; }
@@ -21,15 +22,15 @@ public:
 	QVector<TableQuery> tables() const { return m_tables; }
 	void setTables(const QVector<TableQuery> &tables) { m_tables = tables; }
 
-	static ChangeQuery fromReader(const Schema::ChangeQuery::Reader &reader);
-	void build(Schema::ChangeQuery::Builder builder) const;
+	static ChangeQuery fromJson(const QJsonObject &obj);
+	QJsonObject toJson() const;
 
 	bool matches(const Change &change, const Record &record) const;
 
 	bool operator==(const ChangeQuery &other) const;
 
 private:
-	Revision m_fromRevision;
+	Revision m_fromRevision = 0;
 	QVector<TableQuery> m_tables;
 };
 

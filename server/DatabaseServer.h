@@ -1,35 +1,30 @@
 #pragma once
 
-#include <orm.capnp.h>
-
 #include <QSqlDatabase>
+#include <QTcpServer>
 
 #include "DatabaseEngine.h"
 
 namespace Sportsed {
 namespace Server {
 
-class SubscriptionHandler;
+class Connection;
 
-class DatabaseServer : public Schema::Database::Server
+class DatabaseServer : public QTcpServer
 {
 public:
-	explicit DatabaseServer(QSqlDatabase &db);
+	explicit DatabaseServer(QSqlDatabase &db, const QString &password);
 	virtual ~DatabaseServer();
 
 protected:
-	::kj::Promise<void> version(VersionContext context) override;
-	::kj::Promise<void> changes(ChangesContext context) override;
-	::kj::Promise<void> setupSubscription(SetupSubscriptionContext context) override;
-	::kj::Promise<void> create(CreateContext context) override;
-	::kj::Promise<void> read(ReadContext context) override;
-	::kj::Promise<void> update(UpdateContext context) override;
-	::kj::Promise<void> delete_(DeleteContext context) override;
+	void incomingConnection(qintptr handle) override;
 
 private:
 	QSqlDatabase m_db;
+	QString m_password;
 	DatabaseEngine m_engine;
-	SubscriptionHandler *m_subscriptions;
+
+	QVector<Connection *> m_connections;
 };
 
 }

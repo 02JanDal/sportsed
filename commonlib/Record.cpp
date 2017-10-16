@@ -1,65 +1,95 @@
 #include "Record.h"
 
-#include "CapnprotoUtil.h"
+#include <jd-util/Json.h>
+#include <QDebug>
+
+using namespace JD::Util;
 
 namespace Sportsed {
 namespace Common {
 
-Record::Record() {}
+Record::Record(const Table table, const QHash<QString, QVariant> &values) : m_table(table), m_values(values) {}
 
-Record Record::fromReader(const Schema::Record::Reader &reader)
+Record Record::fromJson(const QJsonObject &obj)
 {
-	Record record;
-	record.m_table = toQString(reader.getTable());
-	record.m_id = reader.getId();
-	record.m_latestRevision = reader.getLatestRevision();
-	for (const auto r : reader.getFields()) {
-		QVariant value;
-		switch (r.getValue().which()) {
-		case Schema::Record::Field::Value::BOOL:
-			value = r.getValue().getBool();
-			break;
-		case Schema::Record::Field::Value::TEXT:
-			value = toQString(r.getValue().getText());
-			break;
-		case Schema::Record::Field::Value::INTEGER:
-			value = r.getValue().getInteger();
-			break;
-		case Schema::Record::Field::Value::POINTER:
-			// TODO sending lists and structs
-			break;
-		}
-
-		record.m_values.insert(toQString(r.getName()), value);
+	Record record(fromTableName(Json::ensureString(obj, "table")));
+	if (obj.value("id").isDouble()) {
+		record.m_id = Json::ensureIsType<Id>(obj, "id");
 	}
-
+	record.m_latestRevision = Json::ensureIsType<Revision>(obj, "latest_revision");
+	record.m_values = Json::ensureIsHashOf<QVariant>(obj, "values");
 	return record;
 }
-void Record::build(Schema::Record::Builder builder) const
+QJsonValue Record::toJson() const
 {
-	builder.setTable(fromQString(m_table));
-	builder.setId(m_id);
-	builder.setLatestRevision(m_latestRevision);
-	auto listBuilder = builder.initFields(uint(m_values.size()));
-	const auto keys = m_values.keys();
-	for (int i = 0; i < keys.size(); ++i) {
-		auto fieldBuilder = listBuilder[uint(i)];
-		fieldBuilder.setName(fromQString(keys.at(i)));
-		const QVariant value = m_values.value(keys.at(i));
-		switch (value.type()) {
-		case QVariant::String:
-			fieldBuilder.getValue().setText(fromQString(value.toString()));
-			break;
-		case QVariant::Bool:
-			fieldBuilder.getValue().setBool(value.toBool());
-			break;
-		default:
-			fieldBuilder.getValue().setInteger(value.toLongLong());
-			break;
-			// TODO: list and structs
-		}
+	if (m_table == Table::Null) {
+		return QJsonValue();
+	}
+	return QJsonObject({
+						   {"table", tableName(m_table)},
+						   {"id", bool(m_id) ? Json::toJson(m_id.value_or(0)) : QJsonValue()},
+						   {"latest_revision", Json::toJson(m_latestRevision)},
+						   {"values", Json::toJsonObject(m_values)}
+					   });
+}
+
+QString tableName(const Table table)
+{
+	switch (table) {
+	case Table::Null: throw SerializeNullTableNameException();
+	case Table::Meta: return "meta";
+	case Table::Change: return "change";
+	case Table::Profile: return "profile";
+	}
+}
+Table fromTableName(const QString &str)
+{
+	if (str == "meta") {
+		return Table::Meta;
+	} else if (str == "change") {
+		return Table::Change;
+	} else if (str == "profile") {
+		return Table::Profile;
+	} else {
+		throw InvalidTableNameException();
 	}
 }
 
 }
+}
+
+QDebug operator<<(QDebug dbg, const Sportsed::Common::Record &r)
+{
+	using namespace Sportsed::Common;
+
+	QDebugStateSaver saver(dbg);
+
+	if (r.isNull()) {
+		return dbg << "Record(Null)";
+	}
+	dbg.nospace() << "Record(";
+	switch (r.table()) {
+	case Table::Null: break;
+	case Table::Meta: dbg.nospace() << "Meta"; break;
+	case Table::Change: dbg.nospace() << "Change"; break;
+	case Table::Profile: dbg.nospace() << "Profile"; break;
+	}
+
+	if (!r.isComplete()) {
+		dbg.nospace() << ", InComplete";
+	}
+
+	if (r.isPersisted()) {
+		dbg.nospace() << ", id=" << r.id();
+	} else {
+		dbg.nospace() << ", NotPersisted";
+	}
+	if (r.latestRevision() != 0) {
+		dbg.nospace() << ", rev=" << r.latestRevision();
+	}
+
+	dbg.nospace() << ", values=" << r.values();
+	dbg.nospace() << ")";
+
+	return dbg;
 }

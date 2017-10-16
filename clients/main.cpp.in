@@ -1,0 +1,19 @@
+#include <QApplication>
+
+#include "@CMAKE_CURRENT_SOURCE_DIR@/MainWindow.h"
+
+#include <config.h>
+
+int main(int argc, char **argv)
+{
+	QApplication app(argc, argv);
+	app.setOrganizationName("JanDalheimer");
+	app.setApplicationVersion(SPORTSED_VERSION);
+	app.setApplicationName("@APP_NAME@");
+	app.setApplicationDisplayName("@APP_DISPLAY_NAME@");
+
+	Sportsed::Client::@APP_NAMESPACE@::MainWindow win;
+	win.show();
+
+	return app.exec();
+}

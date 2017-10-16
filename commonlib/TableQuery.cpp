@@ -1,46 +1,30 @@
 #include "TableQuery.h"
 
-#include "CapnprotoUtil.h"
+#include <jd-util/Json.h>
+
+using namespace JD::Util;
 
 namespace Sportsed {
 namespace Common {
 
 TableFilter::TableFilter() {}
 
-TableFilter TableFilter::fromReader(const Schema::TableQuery::Filter::Reader &reader)
+TableFilter::TableFilter(const QString &field, const QVariant &value)
+	: m_field(field), m_value(value) {}
+
+TableFilter TableFilter::fromJson(const QJsonObject &obj)
 {
 	TableFilter filter;
-	filter.m_field = toQString(reader.getField());
-
-	auto valueReader = reader.getValue();
-	switch (valueReader.which()) {
-	case Schema::TableQuery::Filter::Value::BOOL:
-		filter.m_value = valueReader.getBool();
-		break;
-	case Schema::TableQuery::Filter::Value::INTEGER:
-		filter.m_value = valueReader.getInteger();
-		break;
-	case Schema::TableQuery::Filter::Value::TEXT:
-		filter.m_value = toQString(valueReader.getText());
-		break;
-	}
-
+	filter.m_field = Json::ensureString(obj, "field");
+	filter.m_value = Json::ensureVariant(obj, "value");
 	return filter;
 }
-void TableFilter::build(Schema::TableQuery::Filter::Builder builder) const
+QJsonObject TableFilter::toJson() const
 {
-	builder.setField(fromQString(m_field));
-	switch (m_value.type()) {
-	case QVariant::Bool:
-		builder.getValue().setBool(m_value.toBool());
-		break;
-	case QVariant::String:
-		builder.getValue().setText(fromQString(m_value.toString()));
-		break;
-	default:
-		builder.getValue().setInteger(m_value.toLongLong());
-		break;
-	}
+	return QJsonObject({
+						   {"field", m_field},
+						   {"value", Json::toJson(m_value)}
+					   });
 }
 
 bool TableFilter::operator==(const TableFilter &other) const
@@ -50,18 +34,25 @@ bool TableFilter::operator==(const TableFilter &other) const
 
 TableQuery::TableQuery() {}
 
-TableQuery TableQuery::fromReader(const Schema::TableQuery::Reader &reader)
+TableQuery::TableQuery(const Table table, const QVector<TableFilter> &filters)
+	: m_table(table), m_filters(filters) {}
+
+TableQuery::TableQuery(const Table table, const TableFilter &filter)
+	: TableQuery(table, QVector<TableFilter>() << filter) {}
+
+TableQuery TableQuery::fromJson(const QJsonObject &obj)
 {
 	TableQuery query;
-	query.m_table = toQString(reader.getTable());
-	query.m_filters = readList<TableFilter>(reader.getFilters());
+	query.m_table = Common::fromTableName(Json::ensureString(obj, "table"));
+	query.m_filters = Json::ensureIsArrayOf<TableFilter>(obj, "filters");
 	return query;
 }
-
-void TableQuery::build(Schema::TableQuery::Builder builder) const
+QJsonObject TableQuery::toJson() const
 {
-	builder.setTable(fromQString(m_table));
-	writeList(m_filters, builder, &Schema::TableQuery::Builder::initFilters);
+	return QJsonObject({
+						   {"table", Common::tableName(m_table)},
+						   {"filters", Json::toJsonArray(m_filters)}
+					   });
 }
 
 bool TableQuery::operator==(const TableQuery &other) const

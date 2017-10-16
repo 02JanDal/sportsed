@@ -1,25 +1,30 @@
 #include "ChangeQuery.h"
 
-#include "CapnprotoUtil.h"
+#include <jd-util/Json.h>
+
 #include "Change.h"
+
+using namespace JD::Util;
 
 namespace Sportsed {
 namespace Common {
 
-ChangeQuery::ChangeQuery() {}
+ChangeQuery::ChangeQuery(const QVector<TableQuery> &query, const Revision from)
+	: m_fromRevision(from), m_tables(query) {}
 
-ChangeQuery ChangeQuery::fromReader(const Schema::ChangeQuery::Reader &reader)
+ChangeQuery ChangeQuery::fromJson(const QJsonObject &obj)
 {
 	ChangeQuery query;
-	query.m_fromRevision = reader.getFromRevision();
-	query.m_tables = readList<TableQuery>(reader.getTables());
+	query.m_fromRevision = Json::ensureIsType<Revision>(obj, "from_revision");
+	query.m_tables = Json::ensureIsArrayOf<TableQuery>(obj, "tables");
 	return query;
 }
-
-void ChangeQuery::build(Schema::ChangeQuery::Builder builder) const
+QJsonObject ChangeQuery::toJson() const
 {
-	builder.setFromRevision(m_fromRevision);
-	writeList(m_tables, builder, &Schema::ChangeQuery::Builder::initTables);
+	return QJsonObject({
+						   {"from_revision", Json::toJson(m_fromRevision)},
+						   {"tables", Json::toJsonArray(m_tables)}
+					   });
 }
 
 bool ChangeQuery::matches(const Change &change, const Record &record) const

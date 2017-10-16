@@ -1,11 +1,10 @@
-#include <capnp/ez-rpc.h>
-
 #include <QCoreApplication>
 #include <QCommandLineParser>
 #include <QSqlDatabase>
 #include <QSqlError>
 
 #include <jd-util/TermUtil.h>
+#include <jd-util/Logging.h>
 #include <iostream>
 
 #include "DatabaseServer.h"
@@ -17,6 +16,8 @@ using namespace Sportsed::Server;
 
 int main(int argc, char **argv)
 {
+	installLogFormatter();
+
 	QCoreApplication app(argc, argv);
 	app.setApplicationName("sportsed_server");
 	app.setApplicationVersion(SPORTSED_VERSION);
@@ -27,6 +28,7 @@ int main(int argc, char **argv)
 	parser.addHelpOption();
 	parser.addVersionOption();
 	parser.addOption(QCommandLineOption({"p", "port"}, "Which port to listen on", "PORT", "7384"));
+	parser.addOption(QCommandLineOption("password", "Password to access the server", "PASSWORD", "password"));
 	parser.addOption(QCommandLineOption("db-type", "Type of database used (one of: psql, mysql, sqlite)", "TYPE", "psql"));
 	parser.addOption(QCommandLineOption("db-host", "Adress of the database to connect to", "IP", "localhost"));
 	parser.addOption(QCommandLineOption("db-port", "Port of the database to connect to", "PORT", "5432"));
@@ -83,6 +85,11 @@ int main(int argc, char **argv)
 		return -1;
 	}
 
-	capnp::EzRpcServer server(kj::heap<DatabaseServer>(db), "0.0.0.0", parser.value("port").toUInt());
-	kj::NEVER_DONE.wait(server.getWaitScope());
+	DatabaseServer server(db, parser.value("password"));
+	if (!server.listen(QHostAddress::Any, 4829)) {
+		std::cerr << Term::fg(Term::Red, server.errorString() + '\n');
+		return -1;
+	}
+
+	return app.exec();
 }

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <orm.capnp.h>
-
 #include <QVector>
 
 #include "ChangeQuery.h"
@@ -25,8 +23,8 @@ public:
 	Revision lastRevision() const { return m_lastRevision; }
 	void setLastRevision(const Revision revision) { m_lastRevision = revision; }
 
-	static ChangeResponse fromReader(const Schema::ChangeResponse::Reader &reader);
-	void build(Schema::ChangeResponse::Builder builder) const;
+	static ChangeResponse fromJson(const QJsonObject &obj);
+	QJsonObject toJson() const;
 
 private:
 	ChangeQuery m_query;

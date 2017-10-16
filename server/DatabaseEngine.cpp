@@ -6,6 +6,7 @@
 #include <QSqlQuery>
 #include <QSqlError>
 #include <QDateTime>
+#include <QDebug>
 
 #include <jd-util/Formatting.h>
 
@@ -16,9 +17,23 @@ using namespace JD::Util;
 namespace Sportsed {
 namespace Server {
 
+static QPair<QString, QVector<QVariant>> whereForQuery(const Common::TableQuery &query)
+{
+	QStringList items;
+	QVector<QVariant> values;
+	for (const Common::TableFilter &filter : query.filters()) {
+		items.append(QStringLiteral("%1.%2 = ?").arg(Common::tableName(query.table()), filter.field()));
+		values.append(filter.value());
+	}
+	return qMakePair(items.join(" AND "), values);
+}
+
 DatabaseEngine::DatabaseEngine(QSqlDatabase &db)
 	: m_db(db)
 {
+	if (db.tables().isEmpty()) {
+		throw ValidationException("Database contains no fields");
+	}
 }
 
 Common::ChangeResponse DatabaseEngine::changes(const Common::ChangeQuery &query) const
@@ -28,49 +43,59 @@ Common::ChangeResponse DatabaseEngine::changes(const Common::ChangeQuery &query)
 
 	QString where;
 	QVector<QVariant> values;
+	// TODO: implement filtering
 
-	QSqlQuery sqlQuery = Database::prepare(QStringLiteral("SELECT type,id,record_id,record_table,fields FROM changes WHERE id > ? AND %1 ORDER BY id ASC LIMIT 100")
-										   % where);
+	QSqlQuery sqlQuery = Database::prepare(QStringLiteral("SELECT type,id,record_id,record_table,fields FROM %1 WHERE id > ? %2 ORDER BY id ASC LIMIT 100")
+										   % m_db.driver()->escapeIdentifier(Common::tableName(Common::Table::Change), QSqlDriver::TableName)
+										   % where,
+										   m_db);
 	sqlQuery.addBindValue(query.fromRevision());
 	for (const QVariant &value : values) {
 		sqlQuery.addBindValue(value);
 	}
+
+	// TODO would it be possible to get a read-only lock?
+	Database::TransactionLocker locker(m_db);
+	const auto latest = Database::execOne(m_db.exec("SELECT id FROM %1 ORDER BY id DESC LIMIT 1"
+													% m_db.driver()->escapeIdentifier(Common::tableName(Common::Table::Change), QSqlDriver::TableName)));
 	Database::exec(sqlQuery);
+	locker.rollback(); // no changes done, so might just as well roll back
 
 	QVector<Common::Change> changes;
 	while (sqlQuery.next()) {
-		const QChar typeChar = sqlQuery.value(0).toChar();
+		const QChar typeChar = sqlQuery.value(0).toString().at(0);
 		Common::Change::Type type;
 		switch (typeChar.toLatin1()) {
 		case 'C': type = Common::Change::Create; break;
 		case 'U': type = Common::Change::Update; break;
 		case 'D': type = Common::Change::Delete; break;
+		default: throw Database::DatabaseException("Unknown change type '%1'" % QString(typeChar));
 		}
 
 		Common::Change change(type);
 		change.setRevision(sqlQuery.value(1).value<Common::Revision>());
 		change.setId(sqlQuery.value(2).value<Common::Id>());
-		change.setTable(sqlQuery.value(3).toString());
-		change.setUpdatedFields(sqlQuery.value(4).toString().split(',').toVector());
+		change.setTable(Common::fromTableName(sqlQuery.value(3).toString()));
+		change.setUpdatedFields(sqlQuery.value(4).toString().split(',', QString::SkipEmptyParts).toVector());
 		changes.append(change);
 	}
 
 	response.setChanges(changes);
+	response.setLastRevision(latest.at(0).value<Common::Revision>());
 	return response;
 }
 
 Common::Record DatabaseEngine::create(const Common::Record &record)
 {
-	if (record.table().isEmpty()) {
-		throw ValidationException("Missing table name");
+	if (record.isNull()) {
+		throw ValidationException("Cannot create null record");
 	}
 	if (record.id() != 0) {
 		throw ValidationException("Attempting to re-create existing record");
 	}
 
-	QSqlRecord table = m_db.record(record.table());
-
 #ifdef SPORTSED_DEBUG
+	QSqlRecord table = m_db.record(Common::tableName(record.table()));
 	validateValues(record, table, true);
 #endif
 
@@ -82,64 +107,45 @@ Common::Record DatabaseEngine::create(const Common::Record &record)
 	}
 
 	QSqlQuery query = Database::prepare(QStringLiteral("INSERT INTO %1 (%2) VALUES (%3)").arg(
-											m_db.driver()->escapeIdentifier(record.table(), QSqlDriver::TableName),
+											m_db.driver()->escapeIdentifier(Common::tableName(record.table()), QSqlDriver::TableName),
 											fields.join(','),
 											values.join(',')),
 										m_db);
-	for (const QString &field : fields) {
-		query.addBindValue(record.values().value(field));
+	for (const QVariant &val : record.values()) {
+		query.addBindValue(val);
 	}
+
 
 	Database::TransactionLocker locker(m_db);
 	Database::exec(query);
+
 	Common::Record inserted = record;
 	inserted.setId(query.lastInsertId().value<Common::Id>());
-	inserted.setLatestRevision(insertChange(record.table(), record.id(), Common::Change::Create, inserted));
+	insertChange(Common::tableName(inserted.table()), inserted.id(), Common::Change::Create, inserted);
 	locker.commit();
 
-	return inserted;
+	return complete(inserted);
 }
 
-Common::Record DatabaseEngine::read(const QString &table, const Common::Id id)
+Common::Record DatabaseEngine::read(const Common::Table &table, const Common::Id id)
 {
-	// TODO: transform into a single query that reads both the record and latest revision id
-
-	QSqlQuery query = Database::prepare(QStringLiteral("SELECT * FROM %1 WHERE id = ?") %
-										m_db.driver()->escapeIdentifier(table, QSqlDriver::TableName));
-	query.addBindValue(id);
-	Database::execOne(query);
-
-	QSqlQuery changeQuery = Database::prepare("SELECT id FROM changes WHERE record_id = ? AND record_table = ? ORDER BY id DESC LIMIT 1");
-	changeQuery.addBindValue(id);
-	const Common::Revision latestRev = Database::execOne(changeQuery).at(0).value<Common::Revision>();
-
-	Common::Record record;
-	record.setId(id);
-	record.setLatestRevision(latestRev);
-	record.setTable(table);
-
-	const QSqlRecord sqlRecord = query.record();
-	QHash<QString, QVariant> values;
-	for (int i = 0; i < sqlRecord.count(); ++i) {
-		values.insert(sqlRecord.fieldName(i), sqlRecord.value(i));
+	const QVector<Common::Record> rows = find(Common::TableQuery(table, Common::TableFilter("id", id)));
+	if (rows.size() == 0) {
+		throw NotFoundException();
 	}
-	record.setValues(values);
-
-	record.setComplete(true);
-
-	return record;
+	return rows.first();
 }
 
 Common::Revision DatabaseEngine::update(const Common::Record &record)
 {
-	if (record.table().isEmpty()) {
-		throw ValidationException("Missing table name");
+	if (record.isNull()) {
+		throw ValidationException("Cannot update null record");
 	}
 	if (record.id() == 0) {
 		throw ValidationException("Attempting to update a missing record");
 	}
 
-	QSqlRecord table = m_db.record(record.table());
+	QSqlRecord table = m_db.record(Common::tableName(record.table()));
 
 #ifdef SPORTSED_DEBUG
 	validateValues(record, table, false);
@@ -153,7 +159,7 @@ Common::Revision DatabaseEngine::update(const Common::Record &record)
 	}
 
 	QSqlQuery query = Database::prepare(QStringLiteral("UPDATE %1 SET %2 WHERE id = %3")
-										% m_db.driver()->escapeIdentifier(record.table(), QSqlDriver::TableName)
+										% m_db.driver()->escapeIdentifier(Common::tableName(record.table()), QSqlDriver::TableName)
 										% fields.join(',')
 										% record.id(),
 										m_db);
@@ -163,30 +169,79 @@ Common::Revision DatabaseEngine::update(const Common::Record &record)
 
 	Database::TransactionLocker locker(m_db);
 	Database::exec(query);
-	const Common::Revision revision = insertChange(record.table(), record.id(), Common::Change::Update, record);
+	const Common::Revision revision = insertChange(Common::tableName(record.table()), record.id(), Common::Change::Update, record);
 	locker.commit();
 
 	return revision;
 }
 
-Common::Revision DatabaseEngine::delete_(const QString &table, const Common::Id id)
+Common::Revision DatabaseEngine::delete_(const Common::Table &table, const Common::Id id)
 {
-	QSqlQuery query = Database::prepare(QStringLiteral("DELETE FROM %1 WHERE id = ?").arg(
-											m_db.driver()->escapeIdentifier(table, QSqlDriver::TableName)));
+	QSqlQuery query = Database::prepare("DELETE FROM %1 WHERE id = ?"
+										% m_db.driver()->escapeIdentifier(Common::tableName(table), QSqlDriver::TableName),
+										m_db);
 	query.addBindValue(id);
 
 	Database::TransactionLocker locker(m_db);
 	Database::exec(query);
-	const Common::Revision revision = insertChange(table, id, Common::Change::Delete);
+	const Common::Revision revision = insertChange(Common::tableName(table), id, Common::Change::Delete);
 	locker.commit();
 
 	return revision;
+}
+
+QVector<Common::Record> DatabaseEngine::find(const Common::TableQuery &query)
+{
+	// TODO: transform into a single query that finds all records at once
+	// TODO: transform into a single query that reads both the record and latest revision id
+
+	const auto where = whereForQuery(query);
+
+	QSqlQuery sql = Database::prepare(
+				QStringLiteral("SELECT %1.*,(SELECT change.id FROM change WHERE change.record_id = %1.id AND change.record_table = '%1' ORDER BY change.id DESC) AS _latest_revision_ FROM %1 WHERE %2") %
+				m_db.driver()->escapeIdentifier(Common::tableName(query.table()), QSqlDriver::TableName) %
+				where.first,
+				m_db);
+	for (const QVariant &val : where.second) {
+		sql.addBindValue(val);
+	}
+	Database::exec(sql);
+
+	QVector<Common::Record> records;
+	while (sql.next()) {
+		Common::Record record;
+		record.setTable(query.table());
+
+		const QSqlRecord sqlRecord = sql.record();
+		QHash<QString, QVariant> values;
+		for (int i = 0; i < sqlRecord.count(); ++i) {
+			if (sqlRecord.fieldName(i) == "id") {
+				record.setId(sqlRecord.value(i).value<Common::Id>());
+			} else if (sqlRecord.fieldName(i) == "_latest_revision_") {
+				record.setLatestRevision(sqlRecord.value(i).value<Common::Revision>());
+			} else {
+				values.insert(sqlRecord.fieldName(i), sqlRecord.value(i));
+			}
+		}
+		record.setValues(values);
+
+		record.setComplete(true);
+		records.append(record);
+	}
+
+	return records;
 }
 
 Common::Record DatabaseEngine::complete(const Common::Record &record)
 {
 	if (record.isComplete()) {
 		return record;
+	}
+	if (record.isNull()) {
+		throw ValidationException("Attempting to complete a null record");
+	}
+	if (!record.isPersisted()) {
+		throw ValidationException("Record does not exist in database (missing id)");
 	}
 	return read(record.table(), record.id());
 }
@@ -201,7 +256,8 @@ Common::Revision DatabaseEngine::insertChange(const QString &table, const Common
 	case Sportsed::Common::Change::Delete: typeChar = 'D'; break;
 	}
 
-	QSqlQuery query = Database::prepare("INSERT INTO changes (record_table, record_id, timestamp, fields, type) VALUES (?,?,?,?,?)");
+	QSqlQuery query = Database::prepare("INSERT INTO %1 (record_table, record_id, timestamp, fields, type) VALUES (?,?,?,?,?)"
+										% Common::tableName(Common::Table::Change), m_db);
 	query.addBindValue(table);
 	query.addBindValue(id);
 	query.addBindValue(QDateTime::currentMSecsSinceEpoch());
@@ -216,7 +272,7 @@ Common::Revision DatabaseEngine::insertChange(const QString &table, const Common
 	Common::Change change{type};
 	change.setId(id);
 	change.setRevision(query.lastInsertId().value<Common::Revision>());
-	change.setTable(table);
+	change.setTable(Common::fromTableName(table));
 	change.setUpdatedFields(record.values().keys().toVector());
 	if (m_changeCb) {
 		m_changeCb(change, complete(record));

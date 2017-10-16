@@ -13,6 +13,7 @@ namespace Sportsed {
 namespace Server {
 
 DECLARE_EXCEPTION(Validation)
+DECLARE_EXCEPTION(NotFound)
 
 class DatabaseEngine
 {
@@ -22,9 +23,11 @@ public:
 	Common::ChangeResponse changes(const Common::ChangeQuery &query) const;
 
 	Common::Record create(const Common::Record &record);
-	Common::Record read(const QString &table, const Common::Id id);
+	Common::Record read(const Common::Table &table, const Common::Id id);
 	Common::Revision update(const Common::Record &record);
-	Common::Revision delete_(const QString &table, const Common::Id id);
+	Common::Revision delete_(const Common::Table &table, const Common::Id id);
+
+	QVector<Common::Record> find(const Common::TableQuery &query);
 
 	Common::Record complete(const Common::Record &record);
 

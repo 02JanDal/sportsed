@@ -1,26 +1,30 @@
 #include "ChangeResponse.h"
 
-#include "CapnprotoUtil.h"
+#include <jd-util/Json.h>
+
+using namespace JD::Util;
 
 namespace Sportsed {
 namespace Common {
 
 ChangeResponse::ChangeResponse() {}
 
-ChangeResponse ChangeResponse::fromReader(const Schema::ChangeResponse::Reader &reader)
+ChangeResponse ChangeResponse::fromJson(const QJsonObject &obj)
 {
 	ChangeResponse response;
-	response.m_query = ChangeQuery::fromReader(reader.getQuery());
-	response.m_changes = readList<Change>(reader.getChanges());
-	response.m_lastRevision = reader.getLastRevision();
+	response.m_query = Json::ensureIsType<ChangeQuery>(obj, "query");
+	response.m_changes = Json::ensureIsArrayOf<Change>(obj, "changes");
+	response.m_lastRevision = Json::ensureIsType<Revision>(obj, "last_revision");
 	return response;
 }
 
-void ChangeResponse::build(Schema::ChangeResponse::Builder builder) const
+QJsonObject ChangeResponse::toJson() const
 {
-	m_query.build(builder.initQuery());
-	writeList(m_changes, builder, &Schema::ChangeResponse::Builder::initChanges);
-	builder.setLastRevision(m_lastRevision);
+	return QJsonObject({
+						   {"query", m_query.toJson()},
+						   {"changes", Json::toJsonArray(m_changes)},
+						   {"last_revision", Json::toJson(m_lastRevision)}
+					   });
 }
 
 }
