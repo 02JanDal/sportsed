@@ -4,11 +4,17 @@
 #include <QVariant>
 
 #include <jd-util/Exception.h>
-#include <experimental/optional>
 
+#if __has_include(<optional>)
+#include <optional>
+#elif defined(__cpp_lib_experimental_optional)
+#include <experimental/optional>
 namespace std {
 using experimental::optional;
 }
+#else
+#error Missing required header optional
+#endif
 
 namespace Sportsed {
 namespace Common {

@@ -50,7 +50,7 @@ TEST_CASE("crud operations & change recording") {
 		REQUIRE(changes.changes()[1].type() == Change::Create);
 		REQUIRE(changes.changes()[1].revision() == out.latestRevision());
 		REQUIRE(changes.changes()[1].table() == Table::Profile);
-		REQUIRE(changes.changes()[1].updatedFields() == out.values().keys().toVector());
+		REQUIRE(changes.changes()[1].updatedFields().isEmpty());
 
 		QSqlQuery q1 = db.exec("SELECT * FROM profile");
 		REQUIRE(q1.next());

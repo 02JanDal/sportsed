@@ -14,7 +14,7 @@ class DatabaseServer : public QTcpServer
 {
 public:
 	explicit DatabaseServer(QSqlDatabase &db, const QString &password);
-	virtual ~DatabaseServer();
+	virtual ~DatabaseServer() override;
 
 protected:
 	void incomingConnection(qintptr handle) override;

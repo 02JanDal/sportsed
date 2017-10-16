@@ -16,7 +16,7 @@ class ConnectionDialog : public QDialog
 	Q_OBJECT
 
 public:
-	explicit ConnectionDialog(ServerConnection *conn, QWidget *parent = 0);
+	explicit ConnectionDialog(ServerConnection *conn, QWidget *parent = nullptr);
 	~ConnectionDialog();
 
 private:

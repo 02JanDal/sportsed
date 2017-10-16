@@ -13,7 +13,6 @@ namespace Sportsed {
 namespace Server {
 
 DECLARE_EXCEPTION(Validation)
-DECLARE_EXCEPTION(NotFound)
 
 class DatabaseEngine
 {
@@ -39,7 +38,7 @@ private:
 	ChangeCallback m_changeCb;
 
 	Common::Revision insertChange(const QString &table, const Common::Id id,
-								  const Common::Change::Type type, const Common::Record &record = Common::Record());
+								  const Common::Change::Type type, const Common::Record &record);
 	void validateValues(const Common::Record &record, const QSqlRecord &sqlRecord, const bool strict);
 };
 

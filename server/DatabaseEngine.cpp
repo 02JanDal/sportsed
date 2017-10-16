@@ -131,7 +131,7 @@ Common::Record DatabaseEngine::read(const Common::Table &table, const Common::Id
 {
 	const QVector<Common::Record> rows = find(Common::TableQuery(table, Common::TableFilter("id", id)));
 	if (rows.size() == 0) {
-		throw NotFoundException();
+		throw Database::DoesntExistException();
 	}
 	return rows.first();
 }
@@ -177,6 +177,10 @@ Common::Revision DatabaseEngine::update(const Common::Record &record)
 
 Common::Revision DatabaseEngine::delete_(const Common::Table &table, const Common::Id id)
 {
+	Common::Record record(table);
+	record.setId(id);
+	record = complete(record);
+
 	QSqlQuery query = Database::prepare("DELETE FROM %1 WHERE id = ?"
 										% m_db.driver()->escapeIdentifier(Common::tableName(table), QSqlDriver::TableName),
 										m_db);
@@ -184,7 +188,10 @@ Common::Revision DatabaseEngine::delete_(const Common::Table &table, const Commo
 
 	Database::TransactionLocker locker(m_db);
 	Database::exec(query);
-	const Common::Revision revision = insertChange(Common::tableName(table), id, Common::Change::Delete);
+	const Common::Revision revision = insertChange(Common::tableName(table),
+												   id,
+												   Common::Change::Delete,
+												   record);
 	locker.commit();
 
 	return revision;
@@ -198,7 +205,7 @@ QVector<Common::Record> DatabaseEngine::find(const Common::TableQuery &query)
 	const auto where = whereForQuery(query);
 
 	QSqlQuery sql = Database::prepare(
-				QStringLiteral("SELECT %1.*,(SELECT change.id FROM change WHERE change.record_id = %1.id AND change.record_table = '%1' ORDER BY change.id DESC) AS _latest_revision_ FROM %1 WHERE %2") %
+				QStringLiteral("SELECT %1.*,(SELECT change.id FROM change WHERE change.record_id = %1.id AND change.record_table = %1 ORDER BY change.id DESC LIMIT 1) AS _latest_revision_ FROM %1 WHERE %2") %
 				m_db.driver()->escapeIdentifier(Common::tableName(query.table()), QSqlDriver::TableName) %
 				where.first,
 				m_db);
@@ -261,7 +268,7 @@ Common::Revision DatabaseEngine::insertChange(const QString &table, const Common
 	query.addBindValue(table);
 	query.addBindValue(id);
 	query.addBindValue(QDateTime::currentMSecsSinceEpoch());
-	if (record.values().isEmpty()) {
+	if (record.values().isEmpty() || type != Common::Change::Type::Update) {
 		query.addBindValue(QVariant(QVariant::String));
 	} else {
 		query.addBindValue(record.values().keys().join(','));
@@ -273,7 +280,9 @@ Common::Revision DatabaseEngine::insertChange(const QString &table, const Common
 	change.setId(id);
 	change.setRevision(query.lastInsertId().value<Common::Revision>());
 	change.setTable(Common::fromTableName(table));
-	change.setUpdatedFields(record.values().keys().toVector());
+	if (type == Common::Change::Type::Update) {
+		change.setUpdatedFields(record.values().keys().toVector());
+	}
 	if (m_changeCb) {
 		m_changeCb(change, complete(record));
 	}

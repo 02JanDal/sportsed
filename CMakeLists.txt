@@ -36,17 +36,19 @@ endif()
 
 include(${CMAKE_BINARY_DIR}/conan.cmake)
 
-conan_cmake_run(REQUIRES capnproto/0.6.1@jandal/testing #msgpack/0.1.0@jason2506/testing
+find_program(CONAN conan PATHS /usr/bin /usr/local/bin)
+
+conan_cmake_run(REQUIRES #capnproto/0.6.1@jandal/testing #msgpack/0.1.0@jason2506/testing
 				OPTIONS capnproto:shared=True
 				BASIC_SETUP CMAKE_TARGETS
 				BUILD missing
-				CONAN_COMMAND /usr/local/bin/conan)
+				CONAN_COMMAND ${CONAN})
 list(APPEND CMAKE_MODULE_PATH "${CONAN_CAPNPROTO_ROOT}/cmake")
 
 configure_file(${CMAKE_SOURCE_DIR}/config.h.in ${CMAKE_BINARY_DIR}/config.h @ONLY)
 
 include_directories(${CMAKE_SOURCE_DIR})
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Weverything -Werror -Wno-padded -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-switch-enum -Wno-undefined-reinterpret-cast")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Weverything -Werror -Wno-padded -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-switch-enum -Wno-undefined-reinterpret-cast -Wno-unused-template")
 
 function(fix_osx_rpath)
 	if(APPLE)
