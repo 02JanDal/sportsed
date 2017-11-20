@@ -1,19 +1,54 @@
-#include <QApplication>
+#cmakedefine CLIENT_GUI
 
-#include "@CMAKE_CURRENT_SOURCE_DIR@/MainWindow.h"
+#ifdef CLIENT_GUI
+#include <QApplication>
+#include "@CMAKE_CURRENT_SOURCE_DIR@/gui/MainWindow.h"
+#else
+#include <QCoreApplication>
+#include "@CMAKE_CURRENT_SOURCE_DIR@/Application.h"
+#endif
+
+#include <jd-util/Logging.h>
 
 #include <config.h>
 
+#ifdef SPORTSED_SKIP_AUTH
+#include <QSqlDatabase>
+#include <server/DatabaseMigration.h>
+#include <server/DatabaseServer.h>
+#endif
+
 int main(int argc, char **argv)
 {
+	JD::Util::installLogFormatter();
+
+#ifdef CLIENT_GUI
 	QApplication app(argc, argv);
+#else
+	QCoreApplication app(argc, argv);
+#endif
 	app.setOrganizationName("JanDalheimer");
 	app.setApplicationVersion(SPORTSED_VERSION);
 	app.setApplicationName("@APP_NAME@");
-	app.setApplicationDisplayName("@APP_DISPLAY_NAME@");
+	app.setApplicationDisplayName("Sportsed @CLIENT_DISPLAY_NAME@ Client");
 
-	Sportsed::Client::@APP_NAMESPACE@::MainWindow win;
+#ifdef SPORTSED_SKIP_AUTH
+	QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE");
+	db.setDatabaseName("db.sqlite");
+	Q_ASSERT(db.open());
+	Sportsed::Server::DatabaseMigration::prepare(db, true);
+	Sportsed::Server::EmbeddedDatabaseServer server(db, "asdf");
+	server.listen();
+	Sportsed::Server::ByteArraySender *sender = server.setup();
+	Sportsed::Server::ByteArraySender::instance = sender;
+#endif
+
+#ifdef CLIENT_GUI
+	Sportsed::Client::@CLIENT_NAMESPACE@::MainWindow win;
 	win.show();
+#else
+	Sportsed::Client::@CLIENT_NAMESPACE@::Application clientApp;
+#endif
 
 	return app.exec();
 }

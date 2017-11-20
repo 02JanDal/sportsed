@@ -2,6 +2,8 @@
 
 #include <jd-util/Json.h>
 
+#include <QDebug>
+
 using namespace JD::Util;
 
 namespace Sportsed {
@@ -61,4 +63,17 @@ bool TableQuery::operator==(const TableQuery &other) const
 }
 
 }
+}
+
+QDebug &operator<<(QDebug &dbg, const QVector<Sportsed::Common::TableFilter> &filters)
+{
+	return dbg << qPrintable('(' + Functional::collection(filters).map([](const Sportsed::Common::TableFilter &f) {
+		QString val;
+		if (f.value().type() == QVariant::String) {
+			val = '"' + f.value().toString() + '"';
+		} else {
+			val = f.value().toString();
+		}
+		return f.field() + "=>" + val;
+	}).join(QStringLiteral(", ")) + ')');
 }

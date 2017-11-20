@@ -20,6 +20,7 @@ namespace Server {
 static QPair<QString, QVector<QVariant>> whereForQuery(const Common::TableQuery &query)
 {
 	QStringList items;
+	items.append("1 = 1"); // eliminates the need for special casing an empty query in the caller
 	QVector<QVariant> values;
 	for (const Common::TableFilter &filter : query.filters()) {
 		items.append(QStringLiteral("%1.%2 = ?").arg(Common::tableName(query.table()), filter.field()));
@@ -32,20 +33,36 @@ DatabaseEngine::DatabaseEngine(QSqlDatabase &db)
 	: m_db(db)
 {
 	if (db.tables().isEmpty()) {
-		throw ValidationException("Database contains no fields");
+		throw ValidationException("Database %1 (connection: %2) contains no fields" % m_db.databaseName() % m_db.connectionName());
 	}
+	Database::exec(db.exec(QStringLiteral("DELETE FROM %1 WHERE 1=1").arg(Common::tableName(Common::Table::Client))));
+	Database::exec(db.exec(QStringLiteral("DELETE FROM %1 WHERE record_table = %2").arg(
+							   Common::tableName(Common::Table::Change),
+							   db.driver()->escapeIdentifier(Common::tableName(Common::Table::Client), QSqlDriver::TableName))));
 }
 
-Common::ChangeResponse DatabaseEngine::changes(const Common::ChangeQuery &query) const
+Common::ChangeResponse DatabaseEngine::changes(const Common::ChangeQuery &query)
 {
 	Common::ChangeResponse response;
 	response.setQuery(query);
 
-	QString where;
+	QString where = "1=0";
 	QVector<QVariant> values;
-	// TODO: implement filtering
+	// TODO: extend filter implementation to all fields
+	// QUESTION: should this filter apply to all fields? what if a field has changed?
+	if (!query.query().isNull()) {
+		where += " OR (record_table = ?";
+		values.append(Common::tableName(query.query().table()));
+		for (const Common::TableFilter &filter : query.query().filters()) {
+			if (filter.field() == "id") {
+				where += " AND record_id = ?";
+				values.append(filter.value());
+			}
+		}
+		where += ")";
+	}
 
-	QSqlQuery sqlQuery = Database::prepare(QStringLiteral("SELECT type,id,record_id,record_table,fields FROM %1 WHERE id > ? %2 ORDER BY id ASC LIMIT 100")
+	QSqlQuery sqlQuery = Database::prepare(QStringLiteral("SELECT type,id,record_id,record_table,fields FROM %1 WHERE id > ? AND (%2) ORDER BY id ASC LIMIT 100")
 										   % m_db.driver()->escapeIdentifier(Common::tableName(Common::Table::Change), QSqlDriver::TableName)
 										   % where,
 										   m_db);
@@ -74,8 +91,7 @@ Common::ChangeResponse DatabaseEngine::changes(const Common::ChangeQuery &query)
 
 		Common::Change change(type);
 		change.setRevision(sqlQuery.value(1).value<Common::Revision>());
-		change.setId(sqlQuery.value(2).value<Common::Id>());
-		change.setTable(Common::fromTableName(sqlQuery.value(3).toString()));
+		change.setRecord(read(Common::fromTableName(sqlQuery.value(3).toString()), sqlQuery.value(2).value<Common::Id>()));
 		change.setUpdatedFields(sqlQuery.value(4).toString().split(',', QString::SkipEmptyParts).toVector());
 		changes.append(change);
 	}
@@ -199,9 +215,6 @@ Common::Revision DatabaseEngine::delete_(const Common::Table &table, const Commo
 
 QVector<Common::Record> DatabaseEngine::find(const Common::TableQuery &query)
 {
-	// TODO: transform into a single query that finds all records at once
-	// TODO: transform into a single query that reads both the record and latest revision id
-
 	const auto where = whereForQuery(query);
 
 	QSqlQuery sql = Database::prepare(
@@ -277,14 +290,13 @@ Common::Revision DatabaseEngine::insertChange(const QString &table, const Common
 	Database::exec(query);
 
 	Common::Change change{type};
-	change.setId(id);
 	change.setRevision(query.lastInsertId().value<Common::Revision>());
-	change.setTable(Common::fromTableName(table));
+	change.setRecord(complete(record));
 	if (type == Common::Change::Type::Update) {
 		change.setUpdatedFields(record.values().keys().toVector());
 	}
 	if (m_changeCb) {
-		m_changeCb(change, complete(record));
+		m_changeCb(change);
 	}
 
 	return change.revision();

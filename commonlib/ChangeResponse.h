@@ -34,3 +34,5 @@ private:
 
 }
 }
+
+Q_DECLARE_METATYPE(Sportsed::Common::ChangeResponse)

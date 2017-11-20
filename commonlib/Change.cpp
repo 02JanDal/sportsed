@@ -25,18 +25,16 @@ Change Change::fromJson(const QJsonObject &obj)
 	}
 
 	Change change = Change(t);
-	change.m_id = Json::ensureIsType<Id>(obj, "id");
+	change.m_record = Json::ensureIsType<Record>(obj, "record");
 	change.m_revision = Json::ensureIsType<Revision>(obj, "revision");
-	change.m_table = Common::fromTableName(Json::ensureString(obj, "table"));
 	change.m_updatedFields = Json::ensureIsArrayOf<QString>(obj, "fields");
 	return change;
 }
 QJsonObject Change::toJson() const
 {
 	QJsonObject obj;
-	obj.insert("id", Json::toJson(m_id));
+	obj.insert("record", Json::toJson(m_record));
 	obj.insert("revision", Json::toJson(m_revision));
-	obj.insert("table", Common::tableName(m_table));
 	switch (m_type) {
 	case Create: obj.insert("type", "create"); break;
 	case Update: obj.insert("type", "update"); break;

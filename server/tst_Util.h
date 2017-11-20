@@ -31,7 +31,8 @@ struct StringMaker<QSet<T>>
 
 QSqlDatabase inMemoryDb()
 {
-	QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE", QStringLiteral("db_conn_%1").arg(Catch::getCurrentTicks()));
+	QSqlDatabase db = QSqlDatabase::addDatabase("QSQLITE",
+												QStringLiteral("db_conn_%1").arg(Catch::getCurrentNanosecondsSinceEpoch()));
 	db.setDatabaseName(":memory:");
 	REQUIRE(db.open());
 	REQUIRE(db.isOpen());

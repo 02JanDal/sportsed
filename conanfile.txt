@@ -1,0 +1,5 @@
+[requires]
+catch/2.0.1@02jandal/testing
+
+[generators]
+cmake

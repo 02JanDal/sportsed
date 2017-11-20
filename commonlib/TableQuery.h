@@ -37,6 +37,8 @@ public:
 	explicit TableQuery(const Table table, const QVector<TableFilter> &filters = {});
 	explicit TableQuery(const Table table, const TableFilter &filter);
 
+	bool isNull() const { return m_table == Table::Null; }
+
 	Table table() const { return m_table; }
 	void setTable(const Table &table) { m_table = table; }
 
@@ -55,3 +57,5 @@ private:
 
 }
 }
+
+QDebug &operator<<(QDebug &dbg, const QVector<Sportsed::Common::TableFilter> &filters);

@@ -17,6 +17,8 @@ void upgrade(QSqlDatabase &db);
 int16_t currentVersion(QSqlDatabase &db);
 int latestVersion();
 
+void prepare(QSqlDatabase &db, const bool forceMigrate);
+
 }
 }
 }

@@ -2,111 +2,45 @@
 
 #include <QObject>
 #include <QHostAddress>
+#include <QLoggingCategory>
 
 #include <jd-util/Json.h>
-#include <experimental/optional>
-#include <functional>
 
 #include <commonlib/Record.h>
 #include <commonlib/TableQuery.h>
 
+#include "Async.h"
+
 class QHostAddress;
-class QEventLoop;
+class QTcpSocket;
 
 namespace Sportsed {
 namespace Common {
-class TcpMessageSocket;
+class MessageSocket;
 class ChangeQuery;
 class ChangeResponse;
 }
 
 namespace Client {
+Q_DECLARE_LOGGING_CATEGORY(serverConnection)
 
-class ServerConnection;
+class SocketWrapper;
 
-DECLARE_EXCEPTION(FutureResult)
-
-class FutureImpl
-{
-public:
-	~FutureImpl();
-
-private:
-	friend class ServerConnection;
-	template <typename T> friend class Future;
-
-	using Callback = std::function<void()>;
-
-	explicit FutureImpl(ServerConnection *conn, const int msgId);
-
-	QJsonValue get();
-	void then(const Callback &cb);
-
-	void receivedMessage(const QJsonObject &obj);
-
-private:
-	ServerConnection *m_conn;
-	int m_msgId;
-	std::unique_ptr<QEventLoop> m_loop;
-	Callback m_cb;
-
-	std::experimental::optional<QJsonObject> m_value;
-};
-
-template <typename T>
-class Future
-{
-public:
-	explicit Future(const std::shared_ptr<FutureImpl> &impl) : m_impl(impl) {}
-
-	T get() const { return JD::Util::Json::ensureIsType<T>(m_impl->get()); }
-
-	void then(const std::function<void(T)> &cb, const std::function<void()> &errorCb = {})
-	{
-		m_impl->then([this, cb, errorCb]() {
-			T val;
-			bool threw = false;
-			try {
-				val = get();
-			} catch (...) {
-				threw = true;
-				if (errorCb) {
-					errorCb();
-				}
-			}
-			if (threw) {
-				cb(val);
-			}
-		});
-	}
-
-private:
-	std::shared_ptr<FutureImpl> m_impl;
-};
-
-class Subscribtion : public QObject
-{
-	Q_OBJECT
-public:
-	explicit Subscribtion(QObject *parent = nullptr);
-
-signals:
-	void triggered(const Common::ChangeResponse &changes);
-};
-
-DECLARE_EXCEPTION(AlreadyConnected)
-DECLARE_EXCEPTION(NotConnected)
+DECLARE_EXCEPTION_X(AlreadyConnected, QStringLiteral("Already connected to server"), ::Exception)
+DECLARE_EXCEPTION_X(NotConnected, QStringLiteral("Not connected to server"), ::Exception)
 
 class ServerConnection : public QObject
 {
 	Q_OBJECT
-public:
-	explicit ServerConnection(QObject *parent = nullptr);
+protected:
+	explicit ServerConnection(SocketWrapper *wrapper, QObject *parent = nullptr);
 
-	void connectToServer(const QHostAddress &addr, const QString &password);
+	void connectToServer(const QVariantList &args, const QString &name, const QString &password);
+
+public:
 	void disconnectFromServer();
 
-	bool isConnected() const;
+	bool isConnected() const { return m_isConnected; }
 
 signals:
 	void status(const QString &msg);
@@ -125,14 +59,18 @@ public slots:
 
 	Subscribtion *subscribe(const Common::ChangeQuery &query);
 
-private:
+protected:
 	bool m_shouldBeConnected = false;
 	bool m_authenticated = false;
-	Common::TcpMessageSocket *m_socket;
-	QHostAddress m_address;
+	SocketWrapper *m_socket;
+	QString m_name;
 	QString m_password;
+	int m_previousState;
 
-	void message(const QByteArray &msg);
+	bool m_isConnected = false;
+	void recalculateConnected();
+
+	void received(const QByteArray &msg);
 
 	std::shared_ptr<FutureImpl> sendMessage(const QString &cmd, const QJsonValue &value);
 	int m_nextMsgId = 0;
@@ -143,6 +81,27 @@ private:
 
 	QHash<int, Subscribtion *> m_subscriptions;
 	QVector<Subscribtion *> m_pendingSubscriptions;
+};
+class TcpServerConnection : public ServerConnection
+{
+public:
+	explicit TcpServerConnection(QObject *parent = nullptr);
+
+	void connectToServer(const QHostAddress &addr, const QString &name, const QString &password);
+};
+class LocalServerConnection : public ServerConnection
+{
+public:
+	explicit LocalServerConnection(QObject *parent = nullptr);
+
+	void connectToServer(const QString &socketName, const QString &name, const QString &password);
+};
+class EmbeddedServerConnection : public ServerConnection
+{
+public:
+	explicit EmbeddedServerConnection(QObject *parent = nullptr);
+
+	void connectToServer(const QString &name, const QString &password);
 };
 
 }

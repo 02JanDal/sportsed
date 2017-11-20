@@ -14,12 +14,17 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 set(sportsed_debug_default OFF)
-if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR CMAKE_BUILD_TYPE STREQUAL "")
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
 	set(sportsed_debug_default ON)
 endif()
 option(SPORTSED_DEBUG "Build sportsed with extra debugging checks" ${sportsed_debug_default})
 if(SPORTSED_DEBUG)
 	add_definitions(-DDEBUG_BUILD)
+endif()
+
+option(SPORTSED_SKIP_AUTH "Skip past authentication when debuggning" ${sportsed_debug_default})
+if(SPORTSED_SKIP_AUTH)
+	add_definitions(-DSPORTSED_SKIP_AUTH)
 endif()
 
 if(NOT JD_UTIL_PATH)
@@ -28,30 +33,21 @@ endif()
 add_subdirectory(${JD_UTIL_PATH} jd-util)
 include(CoverageHelpers)
 
-find_package(Qt5 REQUIRED COMPONENTS Core Network Widgets)
-find_package(Catch REQUIRED)
-
-if(NOT EXISTS "${CMAKE_BINARY_DIR}/conan.cmake")
-   message(STATUS "Downloading conan.cmake from https://github.com/memsharded/cmake-conan")
-   file(DOWNLOAD "https://raw.githubusercontent.com/conan-io/cmake-conan/master/conan.cmake"
-				 "${CMAKE_BINARY_DIR}/conan.cmake")
-endif()
-
-include(${CMAKE_BINARY_DIR}/conan.cmake)
+find_package(Qt5 REQUIRED COMPONENTS Core Network Widgets Sql)
 
 find_program(CONAN conan PATHS /usr/bin /usr/local/bin)
-
-conan_cmake_run(REQUIRES #capnproto/0.6.1@jandal/testing #msgpack/0.1.0@jason2506/testing
-				OPTIONS capnproto:shared=True
-				BASIC_SETUP CMAKE_TARGETS
-				BUILD missing
-				CONAN_COMMAND ${CONAN})
-list(APPEND CMAKE_MODULE_PATH "${CONAN_CAPNPROTO_ROOT}/cmake")
+if(${CMAKE_SOURCE_DIR}/conanfile.txt IS_NEWER_THAN ${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+	execute_process(COMMAND ${CONAN} install .. WORKING_DIRECTORY ${CMAKE_BINARY_DIR})
+endif()
+include(${CMAKE_BINARY_DIR}/conanbuildinfo.cmake)
+conan_basic_setup(TARGETS)
+add_custom_target(__dummy DEPENDS ${CMAKE_SOURCE_DIR}/conanfile.txt)
+set(JD_UTIL_CATCH_LIB CONAN_PKG::catch)
 
 configure_file(${CMAKE_SOURCE_DIR}/config.h.in ${CMAKE_BINARY_DIR}/config.h @ONLY)
 
 include_directories(${CMAKE_SOURCE_DIR})
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Weverything -Werror -Wno-padded -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-switch-enum -Wno-undefined-reinterpret-cast")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Weverything -Werror -Wno-padded -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-switch-enum -Wno-undefined-reinterpret-cast -Wno-exit-time-destructors -Wno-gnu-zero-variadic-macro-arguments -Wno-weak-vtables")
 append_if_valid_cxx_flag(nounusedtemplate "-Wno-unused-template" CMAKE_CXX_FLAGS_DEBUG)
 
 function(fix_osx_rpath)
@@ -65,28 +61,23 @@ function(fix_osx_rpath)
 	endif()
 endfunction()
 
+function(sign_osx_app target)
+	set(SPORTSED_OSX_CERTIFICATE "" CACHE STRING "Name of the certificate to use for signing on OS X")
+	if(APPLE AND NOT SPORTSED_OSX_CERTIFICATE STREQUAL "")
+		add_custom_command(TARGET ${target}
+			POST_BUILD
+			COMMAND codesign -f --deep -s ${SPORTSED_OSX_CERTIFICATE} $<TARGET_FILE:${target}>
+		)
+	endif()
+endfunction()
+
 add_subdirectory(commonlib)
 add_subdirectory(server)
-add_subdirectory(clients/clientlib)
-add_subdirectory(clients/si_remote)
-add_subdirectory(clients/registration)
-add_subdirectory(clients/admin)
-add_subdirectory(clients/checkout)
-add_subdirectory(clients/speaker)
-add_subdirectory(clients/live)
-add_subdirectory(clients/printer)
-add_subdirectory(clients/apiserver)
+add_subdirectory(clients)
+add_subdirectory(tests)
 
 add_coverage_flags(sportsed_serverlib sportsed_commonlib sportsed_clientlib
 	sportsed_server
-	#sportsed_client_admin
-	#sportsed_client_apiserver
-	#sportsed_client_checkout
-	#sportsed_client_live
-	sportsed_client_printer
-	#sportsed_client_registration
-	#sportsed_client_si_remote
-	#sportsed_client_speaker
 )
 add_coverage_capture(sportsed sportsed_server tst_DatabaseMigration tst_DatabaseEngine tst_DatabaseServer tst_sportsed_server)
 add_custom_target(coverage DEPENDS coverage_sportsed_html)

@@ -11,13 +11,18 @@
 #include <jd-util/Util.h>
 
 #include "ConnectionDialog.h"
+#include "CompetitionSelectDialog.h"
 
 namespace Sportsed {
 namespace Client {
 
 ClientMainWindow::ClientMainWindow(const QString &profileType, QWidget *parent)
 	: JD::Util::MainWindow(parent),
-	  m_conn(new ServerConnection(this)),
+#ifdef SPORTSED_SKIP_AUTH
+	  m_conn(new EmbeddedServerConnection(this)),
+#else
+	  m_conn(new TcpServerConnection(this)),
+#endif
 	  m_disconnectedActions(new QActionGroup(this)),
 	  m_connectedActions(new QActionGroup(this)),
 	  m_profileType(profileType)
@@ -25,8 +30,24 @@ ClientMainWindow::ClientMainWindow(const QString &profileType, QWidget *parent)
 	m_connectedActions->setEnabled(false);
 	m_disconnectedActions->setEnabled(true);
 
+	connect(m_conn, &ServerConnection::connectedChanged, this, [this](const bool connected) {
+		if (!connected) {
+			serverDisconnected();
+		}
+	});
+
 	JD::Util::applyProperty(m_conn, &ServerConnection::isConnected, &ServerConnection::connectedChanged,
 							this, [this](const bool connected) {
+		if (connected) {
+			CompetitionSelectDialog dlg(m_conn, this);
+			if (dlg.exec() == QDialog::Rejected) {
+				close();
+				return;
+			} else {
+				setCompetitionId(dlg.competitionId());
+			}
+			serverConnected();
+		}
 		m_connectedActions->setEnabled(connected);
 		m_disconnectedActions->setEnabled(!connected);
 		if (centralWidget()) {
@@ -35,7 +56,7 @@ ClientMainWindow::ClientMainWindow(const QString &profileType, QWidget *parent)
 	});
 
 	QTimer::singleShot(1, this, [this]() {
-		//centralWidget()->setEnabled(false);
+		centralWidget()->setEnabled(false);
 		connectClicked();
 	});
 
@@ -59,7 +80,7 @@ void ClientMainWindow::loadProfile(const QString &name)
 					m_conn->find(Common::TableQuery(
 									 Common::Table::Profile,
 									 {Common::TableFilter("type", m_profileType), Common::TableFilter("name", name)})),
-					tr("Loading profile..."));
+					tr("Loading profile..."), this);
 		if (records.isEmpty()) {
 			QMessageBox::warning(this, tr("Unknown profile"), tr("There exists no profile with this name"));
 		} else {
@@ -85,10 +106,24 @@ void ClientMainWindow::registerActions(QAction *connectAct, QAction *disconnectA
 	m_disconnectedActions->addAction(connectAct);
 }
 
+void ClientMainWindow::setCompetitionId(const Common::Id id)
+{
+	m_competitionId = id;
+}
+
 void ClientMainWindow::connectClicked()
 {
+#ifdef SPORTSED_SKIP_AUTH
+	m_conn->connectToServer("debug client", "asdf");
+#else
 	ConnectionDialog dlg(m_conn, this);
-	dlg.exec();
+	if (dlg.exec() == ConnectionDialog::Accepted) {
+		m_competitionId = dlg.competitionId();
+		serverConnected();
+	} else {
+		close();
+	}
+#endif
 }
 void ClientMainWindow::disconnectClicked()
 {

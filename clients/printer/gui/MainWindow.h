@@ -38,6 +38,9 @@ private:
 
 	Report currentReport() const;
 	Automation currentAutomation() const;
+
+	void serverConnected() override;
+	void serverDisconnected() override;
 };
 
 }

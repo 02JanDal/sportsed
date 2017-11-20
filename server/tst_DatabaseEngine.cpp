@@ -46,10 +46,10 @@ TEST_CASE("crud operations & change recording") {
 		auto changes = e.changes(ChangeQuery({TableQuery(Table::Profile)}));
 		REQUIRE(changes.changes().size() == 2);
 		REQUIRE(changes.lastRevision() == out.latestRevision());
-		REQUIRE(changes.changes()[1].id() == out.id());
+		REQUIRE(changes.changes()[1].record().id() == out.id());
 		REQUIRE(changes.changes()[1].type() == Change::Create);
 		REQUIRE(changes.changes()[1].revision() == out.latestRevision());
-		REQUIRE(changes.changes()[1].table() == Table::Profile);
+		REQUIRE(changes.changes()[1].record().table() == Table::Profile);
 		REQUIRE(changes.changes()[1].updatedFields().isEmpty());
 
 		QSqlQuery q1 = db.exec("SELECT * FROM profile");
@@ -99,8 +99,8 @@ TEST_CASE("crud operations & change recording") {
 		REQUIRE(changes.changes().size() == 2);
 		REQUIRE(changes.changes()[0].type() == Change::Create);
 		REQUIRE(changes.changes()[1].type() == Change::Update);
-		REQUIRE(changes.changes()[1].id() == 1);
-		REQUIRE(changes.changes()[1].table() == Table::Profile);
+		REQUIRE(changes.changes()[1].record().id() == 1);
+		REQUIRE(changes.changes()[1].record().table() == Table::Profile);
 		REQUIRE(changes.changes()[1].updatedFields() == QVector<QString>({"value"}));
 	}
 	SECTION("delete") {
@@ -117,8 +117,8 @@ TEST_CASE("crud operations & change recording") {
 		REQUIRE(changes.changes().size() == 2);
 		REQUIRE(changes.changes()[0].type() == Change::Create);
 		REQUIRE(changes.changes()[1].type() == Change::Delete);
-		REQUIRE(changes.changes()[1].id() == 1);
-		REQUIRE(changes.changes()[1].table() == Table::Profile);
+		REQUIRE(changes.changes()[1].record().id() == 1);
+		REQUIRE(changes.changes()[1].record().table() == Table::Profile);
 		REQUIRE(changes.changes()[1].updatedFields().isEmpty());
 	}
 	SECTION("change callback") {
@@ -126,19 +126,19 @@ TEST_CASE("crud operations & change recording") {
 		DatabaseEngine e(db);
 		Record in = createRecord();
 
-		QVector<QPair<Change, Record>> changes;
-		auto cb = [&changes](const Change &c, const Record &r) {
-			changes.append(qMakePair(c, r));
+		QVector<Change> changes;
+		auto cb = [&changes](const Change &c) {
+			changes.append(c);
 		};
 		e.setChangeCallback(cb);
 
 		REQUIRE_NOTHROW(e.create(in));
 		REQUIRE(changes.size() == 1);
-		REQUIRE(changes.at(0).first.type() == Change::Create);
+		REQUIRE(changes.at(0).type() == Change::Create);
 
 		REQUIRE_NOTHROW(e.delete_(in.table(), 1));
 		REQUIRE(changes.size() == 2);
-		REQUIRE(changes.at(0).second.table() == Table::Profile);
+		REQUIRE(changes.at(0).record().table() == Table::Profile);
 	}
 }
 

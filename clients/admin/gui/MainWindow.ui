@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Sportsed::Client::Admin::MainWindow</class>
+ <widget class="Sportsed::Client::ClientMainWindow" name="Sportsed::Client::Admin::MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Admin Client</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QTabWidget" name="tabWidget">
+      <property name="currentIndex">
+       <number>0</number>
+      </property>
+      <widget class="Sportsed::Client::Admin::CompetitionEditWidget" name="competitionTab">
+       <attribute name="title">
+        <string>Competition</string>
+       </attribute>
+      </widget>
+      <widget class="Sportsed::Client::Admin::CoursesEditWidget" name="coursesTab">
+       <attribute name="title">
+        <string>Courses</string>
+       </attribute>
+      </widget>
+      <widget class="Sportsed::Client::Admin::ClassesEditWidget" name="classesTab">
+       <attribute name="title">
+        <string>Classes</string>
+       </attribute>
+      </widget>
+      <widget class="QWidget" name="teamsTab">
+       <attribute name="title">
+        <string>Teams</string>
+       </attribute>
+      </widget>
+      <widget class="Sportsed::Client::Admin::CompetitorsEditWidget" name="competitorsTab">
+       <attribute name="title">
+        <string>Competitors</string>
+       </attribute>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>800</width>
+     <height>22</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuFile">
+    <property name="title">
+     <string>&amp;File</string>
+    </property>
+    <widget class="QMenu" name="menuProfile">
+     <property name="title">
+      <string>Profile</string>
+     </property>
+     <addaction name="actionLoadProfile"/>
+     <addaction name="actionStoreProfile"/>
+    </widget>
+    <addaction name="actionConnect"/>
+    <addaction name="actionDisconnect"/>
+    <addaction name="separator"/>
+    <addaction name="menuProfile"/>
+    <addaction name="separator"/>
+    <addaction name="actionQuit"/>
+   </widget>
+   <widget class="QMenu" name="menuEdit">
+    <property name="title">
+     <string>&amp;Edit</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuHelp">
+    <property name="title">
+     <string>&amp;Help</string>
+    </property>
+    <addaction name="actionAbout"/>
+    <addaction name="actionAboutQt"/>
+   </widget>
+   <addaction name="menuFile"/>
+   <addaction name="menuEdit"/>
+   <addaction name="menuHelp"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+  <action name="actionConnect">
+   <property name="text">
+    <string>&amp;Connect</string>
+   </property>
+  </action>
+  <action name="actionDisconnect">
+   <property name="text">
+    <string>&amp;Disconnect</string>
+   </property>
+  </action>
+  <action name="actionLoadProfile">
+   <property name="text">
+    <string>&amp;Load</string>
+   </property>
+  </action>
+  <action name="actionStoreProfile">
+   <property name="text">
+    <string>&amp;Store</string>
+   </property>
+  </action>
+  <action name="actionQuit">
+   <property name="text">
+    <string>&amp;Quit</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>&amp;About</string>
+   </property>
+  </action>
+  <action name="actionAboutQt">
+   <property name="text">
+    <string>About &amp;Qt</string>
+   </property>
+  </action>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>Sportsed::Client::ClientMainWindow</class>
+   <extends>QMainWindow</extends>
+   <header>clientlib/ClientMainWindow.h</header>
+   <container>1</container>
+   <slots>
+    <slot>quit()</slot>
+    <slot>about()</slot>
+    <slot>aboutQt()</slot>
+    <slot>connectClicked()</slot>
+    <slot>disconnectClicked()</slot>
+    <slot>loadProfileClicked()</slot>
+    <slot>storeProfileClicked()</slot>
+   </slots>
+  </customwidget>
+  <customwidget>
+   <class>Sportsed::Client::Admin::CompetitionEditWidget</class>
+   <extends>QWidget</extends>
+   <header>gui/CompetitionEditWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>Sportsed::Client::Admin::CoursesEditWidget</class>
+   <extends>QWidget</extends>
+   <header>gui/CoursesEditWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>Sportsed::Client::Admin::ClassesEditWidget</class>
+   <extends>QWidget</extends>
+   <header>gui/ClassesEditWidget.h</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>Sportsed::Client::Admin::CompetitorsEditWidget</class>
+   <extends>QWidget</extends>
+   <header>gui/CompetitorsEditWidget.h</header>
+   <container>1</container>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

@@ -20,11 +20,8 @@ public:
 
 	explicit Change(const Type &type = Create);
 
-	Table table() const { return m_table; }
-	void setTable(const Table &table) { m_table = table; }
-
-	Id id() const { return m_id; }
-	void setId(const Id id) { m_id = id; }
+	Record record() const { return m_record; }
+	void setRecord(const Record &rec) { m_record = rec; }
 
 	Revision revision() const { return m_revision; }
 	void setRevision(const Revision revision) { m_revision = revision; }
@@ -38,8 +35,7 @@ public:
 	QJsonObject toJson() const;
 
 private:
-	Table m_table;
-	Id m_id;
+	Record m_record;
 	Revision m_revision;
 	Type m_type;
 	QVector<QString> m_updatedFields;

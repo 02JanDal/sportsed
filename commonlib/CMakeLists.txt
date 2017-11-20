@@ -12,8 +12,11 @@ set(SRC
 	Record.h
 	Record.cpp
 
-	TcpMessageSocket.h
-	TcpMessageSocket.cpp
+	MessageSocket.h
+	MessageSocket.cpp
+
+	Validators.h
+	Validators.cpp
 )
 add_library(${PROJECT_NAME}_commonlib STATIC ${SRC})
 target_link_libraries(${PROJECT_NAME}_commonlib PUBLIC jd-util Qt5::Network)

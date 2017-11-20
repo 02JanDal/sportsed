@@ -114,6 +114,9 @@ Automation MainWindow::currentAutomation() const
 	return a;
 }
 
+void MainWindow::serverConnected() {}
+void MainWindow::serverDisconnected() {}
+
 }
 }
 }

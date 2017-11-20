@@ -19,7 +19,7 @@ class DatabaseEngine
 public:
 	explicit DatabaseEngine(QSqlDatabase &db);
 
-	Common::ChangeResponse changes(const Common::ChangeQuery &query) const;
+	Common::ChangeResponse changes(const Common::ChangeQuery &query);
 
 	Common::Record create(const Common::Record &record);
 	Common::Record read(const Common::Table &table, const Common::Id id);
@@ -30,7 +30,7 @@ public:
 
 	Common::Record complete(const Common::Record &record);
 
-	using ChangeCallback = std::function<void(Common::Change, Common::Record)>;
+	using ChangeCallback = std::function<void(Common::Change)>;
 	void setChangeCallback(const ChangeCallback &cb) { m_changeCb = cb; }
 
 private:

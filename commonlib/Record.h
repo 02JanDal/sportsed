@@ -26,8 +26,16 @@ enum class Table {
 	Null,
 	Meta,
 	Change,
-	Profile
+	Profile,
+	Client,
+	Competition,
+	Stage,
+	Course,
+	Control,
+	CourseControl,
+	Class
 };
+constexpr inline uint qHash(const Table table, uint seed = 0) Q_DECL_NOTHROW { return ::qHash(uint(table), seed); }
 
 DECLARE_EXCEPTION(SerializeNullTableName)
 DECLARE_EXCEPTION(InvalidTableName)
@@ -48,6 +56,7 @@ public:
 
 	Id id() const { return m_id.value_or(0); }
 	void setId(const Id id) { m_id = id; }
+	void unsetId() { m_id = {}; }
 
 	Revision latestRevision() const { return m_latestRevision; }
 	void setLatestRevision(const Revision revision) { m_latestRevision = revision; }
@@ -63,6 +72,10 @@ public:
 
 	static Record fromJson(const QJsonObject &obj);
 	QJsonValue toJson() const;
+
+	QVector<QString> changesBetween(const Record &record) const;
+
+	bool operator==(const Record &other) const;
 
 private:
 	Table m_table;
