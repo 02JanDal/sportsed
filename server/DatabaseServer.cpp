@@ -280,6 +280,7 @@ void DatabaseServer::handleChange(const Common::Change &change)
 														{"reply_to", it.key()},
 														{"data", response.toJson()}
 													});
+				qCDebug(server) << "sending" << msg;
 				conn->send(Json::toText(msg));
 			}
 		}

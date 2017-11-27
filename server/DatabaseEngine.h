@@ -22,11 +22,11 @@ public:
 	Common::ChangeResponse changes(const Common::ChangeQuery &query);
 
 	Common::Record create(const Common::Record &record);
-	Common::Record read(const Common::Table &table, const Common::Id id);
+	Common::Record read(const Common::Table &table, const Common::Id id, const bool includeDeleted = false);
 	Common::Revision update(const Common::Record &record);
 	Common::Revision delete_(const Common::Table &table, const Common::Id id);
 
-	QVector<Common::Record> find(const Common::TableQuery &query);
+	QVector<Common::Record> find(const Common::TableQuery &query, const bool includeDeleted = false);
 
 	Common::Record complete(const Common::Record &record);
 

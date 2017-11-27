@@ -20,7 +20,7 @@ struct Table
 {
 	template <typename... Fields>
 	explicit Table(const QString &name, Fields... fields)
-		: sql("CREATE TABLE %1 (__id__, %2)" % name % QStringList({fields...}).join(", ").replace("FK", "__fk__")) {}
+		: sql("CREATE TABLE %1 (__id__, _deleted_ BOOLEAN NOT NULL DEFAULT 0, %2)" % name % QStringList({fields...}).join(", ").replace("FK", "__fk__")) {}
 	QString sql;
 };
 
@@ -62,7 +62,10 @@ static QVector<QString> extractFields(const QString &statement)
 			break;
 		}
 		const int nextSpace = statement.indexOf(' ', nextComma+2);
-		fields.append(statement.mid(nextComma+1, nextSpace - nextComma).remove('\'').trimmed());
+		const QString field = statement.mid(nextComma+1, nextSpace - nextComma).remove('\'').trimmed();
+		if (!field.startsWith('_')) {
+			fields.append(field);
+		}
 		index = nextSpace;
 	}
 

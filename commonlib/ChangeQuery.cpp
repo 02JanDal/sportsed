@@ -39,9 +39,19 @@ bool ChangeQuery::matches(const Change &change, const Record &record) const
 			if (filter.field() == "id") {
 				return filter.value().value<Id>() == record.id();
 			} else if (record.values().contains(filter.field())) {
-				return filter.value() == record.values().value(filter.field());
+				const QVariant a = filter.value();
+				const QVariant b = record.value(filter.field());
+				switch (filter.op()) {
+				case Sportsed::Common::TableFilter::Equal: return a == b;
+				case Sportsed::Common::TableFilter::NotEqual: return a != b;
+				case Sportsed::Common::TableFilter::Less: return a < b;
+				case Sportsed::Common::TableFilter::LessEqual: return a <= b;
+				case Sportsed::Common::TableFilter::Greater: return a > b;
+				case Sportsed::Common::TableFilter::GreaterEqual: return a >= b;
+				}
+			} else if (filter.field().contains('>')) {
+				return true; // include all "multi-level" fields since we are not able to determine if they should be excluded
 			} else {
-				// TODO fetch the reset of the record
 				return false;
 			}
 		});

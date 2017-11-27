@@ -11,11 +11,25 @@ namespace Common {
 class TableFilter
 {
 public:
+	enum Operator
+	{
+		Equal,
+		NotEqual,
+		Less,
+		LessEqual,
+		Greater,
+		GreaterEqual
+	};
+
 	explicit TableFilter();
 	explicit TableFilter(const QString &field, const QVariant &value);
+	explicit TableFilter(const QString &field, const Operator op, const QVariant &value);
 
 	QString field() const { return m_field; }
 	void setField(const QString &field) { m_field = field; }
+
+	Operator op() const { return m_op; }
+	void setOp(const Operator op) { m_op = op; }
 
 	QVariant value() const { return m_value; }
 	void setValue(const QVariant &value) { m_value = value; }
@@ -27,6 +41,7 @@ public:
 
 private:
 	QString m_field;
+	Operator m_op = Equal;
 	QVariant m_value;
 };
 

@@ -13,11 +13,22 @@ TableFilter::TableFilter() {}
 
 TableFilter::TableFilter(const QString &field, const QVariant &value)
 	: m_field(field), m_value(value) {}
+TableFilter::TableFilter(const QString &field, const TableFilter::Operator op, const QVariant &value)
+	: m_field(field), m_op(op), m_value(value) {}
 
+static const Json::Enum<TableFilter::Operator> operatorEnum = {
+	{TableFilter::Equal, "="},
+	{TableFilter::NotEqual, "!="},
+	{TableFilter::Less, "<"},
+	{TableFilter::LessEqual, "<="},
+	{TableFilter::Greater, ">"},
+	{TableFilter::GreaterEqual, ">="}
+};
 TableFilter TableFilter::fromJson(const QJsonObject &obj)
 {
 	TableFilter filter;
 	filter.m_field = Json::ensureString(obj, "field");
+	filter.m_op = operatorEnum.ensure(obj, "op");
 	filter.m_value = Json::ensureVariant(obj, "value");
 	return filter;
 }
@@ -25,13 +36,14 @@ QJsonObject TableFilter::toJson() const
 {
 	return QJsonObject({
 						   {"field", m_field},
+						   {"op", operatorEnum.toJson(m_op)},
 						   {"value", Json::toJson(m_value)}
 					   });
 }
 
 bool TableFilter::operator==(const TableFilter &other) const
 {
-	return m_field == other.m_field && m_value == other.m_value;
+	return m_field == other.m_field && m_op == other.m_op && m_value == other.m_value;
 }
 
 TableQuery::TableQuery() {}
@@ -74,6 +86,6 @@ QDebug &operator<<(QDebug &dbg, const QVector<Sportsed::Common::TableFilter> &fi
 		} else {
 			val = f.value().toString();
 		}
-		return f.field() + "=>" + val;
+		return f.field() + Sportsed::Common::operatorEnum.toJson(f.op()).toString() + val;
 	}).join(QStringLiteral(", ")) + ')');
 }

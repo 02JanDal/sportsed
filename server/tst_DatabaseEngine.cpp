@@ -1,5 +1,6 @@
 #include <tst_Util.h>
 #include <QDebug>
+#include <QDate>
 #include <jd-util-sql/DatabaseUtil.h>
 
 #include "DatabaseEngine.h"
@@ -155,12 +156,49 @@ TEST_CASE("searching") {
 	REQUIRE_NOTHROW(e.create(inb));
 	REQUIRE_NOTHROW(e.create(inc));
 
-	const QVector<Record> resultA = e.find(TableQuery(Table::Profile, QVector<TableFilter>() << TableFilter("name", "a")));
+	const QVector<Record> resultA = e.find(TableQuery(Table::Profile, TableFilter("name", "a")));
 	REQUIRE(resultA.size() == 1);
 	REQUIRE(resultA.at(0).values() == ina.values());
 
-	const QVector<Record> resultAll = e.find(TableQuery(Table::Profile, QVector<TableFilter>() << TableFilter("value", "{}")));
+	const QVector<Record> resultAll = e.find(TableQuery(Table::Profile, TableFilter("value", "{}")));
 	REQUIRE(resultAll.size() == 3);
+
+	const auto compA = e.create(Record(Table::Competition, {{"name", "comp a"}, {"sport", "Orienteering"}}));
+	const auto compB = e.create(Record(Table::Competition, {{"name", "comp b"}, {"sport", "Orienteering"}}));
+	const auto stage1 = e.create(Record(Table::Stage, {
+											{"name", "stage 1"},
+											{"date", QDate::currentDate()},
+											{"discipline", "Middle"},
+											{"in_totals", true},
+											{"type", "Relay"},
+											{"competition_id", compA.id()}
+										}));
+	const auto stage2 = e.create(Record(Table::Stage, {
+											{"name", "stage 2"},
+											{"date", QDate::currentDate()},
+											{"discipline", "Middle"},
+											{"in_totals", true},
+											{"type", "Relay"},
+											{"competition_id", compA.id()}
+										}));
+	const auto stage3 = e.create(Record(Table::Stage, {
+											{"name", "stage 3"},
+											{"date", QDate::currentDate()},
+											{"discipline", "Middle"},
+											{"in_totals", true},
+											{"type", "Relay"},
+											{"competition_id", compB.id()}
+										}));
+	const auto courseA = e.create(Record(Table::Course, {{"stage_id", stage1.id()}, {"name", "course a"}}));
+	const auto courseB = e.create(Record(Table::Course, {{"stage_id", stage1.id()}, {"name", "course b"}}));
+	const auto courseC = e.create(Record(Table::Course, {{"stage_id", stage2.id()}, {"name", "course c"}}));
+	const auto courseD = e.create(Record(Table::Course, {{"stage_id", stage3.id()}, {"name", "course d"}}));
+	const QVector<Record> coursesX = e.find(TableQuery(Table::Course, TableFilter("stage_id>competition_id", compA.id())));
+	const QVector<Record> coursesY = e.find(TableQuery(Table::Course, TableFilter("stage_id>competition_id", compB.id())));
+	REQUIRE(coursesX.size() == 3);
+	REQUIRE(coursesX == (QVector<Record>() << courseA << courseB << courseC));
+	REQUIRE(coursesY == (QVector<Record>() << courseD));
+
 }
 
 TEST_CASE("completing") {

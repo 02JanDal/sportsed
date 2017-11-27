@@ -19,14 +19,45 @@ namespace Server {
 
 static QPair<QString, QVector<QVariant>> whereForQuery(const Common::TableQuery &query)
 {
+	QStringList joins;
 	QStringList items;
 	items.append("1 = 1"); // eliminates the need for special casing an empty query in the caller
 	QVector<QVariant> values;
 	for (const Common::TableFilter &filter : query.filters()) {
-		items.append(QStringLiteral("%1.%2 = ?").arg(Common::tableName(query.table()), filter.field()));
+		QString op;
+		switch (filter.op()) {
+		case Sportsed::Common::TableFilter::Equal: op = '='; break;
+		case Sportsed::Common::TableFilter::NotEqual: op = "<>"; break;
+		case Sportsed::Common::TableFilter::Less: op = '<'; break;
+		case Sportsed::Common::TableFilter::LessEqual: op = "<="; break;
+		case Sportsed::Common::TableFilter::Greater: op = ">"; break;
+		case Sportsed::Common::TableFilter::GreaterEqual: op = ">="; break;
+		}
+
+		if (filter.field().contains('>')) {
+			// special filtering in the format table_a_id>table_b_id>table_c_id that will use joins to match the table_a_id field
+			// in the current table against the id field in table_a, table_b_id in table_a against table_b.id etc. and table_c_id
+			// against the given value
+
+			const QStringList fields = filter.field().split('>');
+			QString join;
+			for (int i = 0; i < fields.size(); ++i) {
+				if (i != (fields.size()-1)) {
+					const QString field = fields.at(i);
+					const QString table = QString(field).remove("_id");
+					const QString prevTable = i == 0 ? Common::tableName(query.table()) : QString(fields.at(i-1)).remove("_id");
+					join += QStringLiteral(" JOIN %1 ON %1.id = %2.%3").arg(table, prevTable, field);
+				}
+			}
+			joins.append(join);
+			items.append(QStringLiteral("%1.%2 %3 ?").arg(QString(fields.at(fields.size()-2)).remove("_id"), fields.last(), op));
+		} else {
+			// normal filtering
+			items.append(QStringLiteral("%1.%2 %3 ?").arg(Common::tableName(query.table()), filter.field(), op));
+		}
 		values.append(filter.value());
 	}
-	return qMakePair(items.join(" AND "), values);
+	return qMakePair(joins.join(" ") + " WHERE " + items.join(" AND "), values);
 }
 
 DatabaseEngine::DatabaseEngine(QSqlDatabase &db)
@@ -91,7 +122,9 @@ Common::ChangeResponse DatabaseEngine::changes(const Common::ChangeQuery &query)
 
 		Common::Change change(type);
 		change.setRevision(sqlQuery.value(1).value<Common::Revision>());
-		change.setRecord(read(Common::fromTableName(sqlQuery.value(3).toString()), sqlQuery.value(2).value<Common::Id>()));
+		change.setRecord(read(Common::fromTableName(sqlQuery.value(3).toString()),
+							  sqlQuery.value(2).value<Common::Id>(),
+							  true));
 		change.setUpdatedFields(sqlQuery.value(4).toString().split(',', QString::SkipEmptyParts).toVector());
 		changes.append(change);
 	}
@@ -143,9 +176,9 @@ Common::Record DatabaseEngine::create(const Common::Record &record)
 	return complete(inserted);
 }
 
-Common::Record DatabaseEngine::read(const Common::Table &table, const Common::Id id)
+Common::Record DatabaseEngine::read(const Common::Table &table, const Common::Id id, const bool includeDeleted)
 {
-	const QVector<Common::Record> rows = find(Common::TableQuery(table, Common::TableFilter("id", id)));
+	const QVector<Common::Record> rows = find(Common::TableQuery(table, Common::TableFilter("id", id)), includeDeleted);
 	if (rows.size() == 0) {
 		throw Database::DoesntExistException();
 	}
@@ -174,7 +207,7 @@ Common::Revision DatabaseEngine::update(const Common::Record &record)
 		values.append(it.value());
 	}
 
-	QSqlQuery query = Database::prepare(QStringLiteral("UPDATE %1 SET %2 WHERE id = %3")
+	QSqlQuery query = Database::prepare(QStringLiteral("UPDATE %1 SET %2 WHERE id = %3 AND _deleted_ = 0")
 										% m_db.driver()->escapeIdentifier(Common::tableName(record.table()), QSqlDriver::TableName)
 										% fields.join(',')
 										% record.id(),
@@ -197,7 +230,7 @@ Common::Revision DatabaseEngine::delete_(const Common::Table &table, const Commo
 	record.setId(id);
 	record = complete(record);
 
-	QSqlQuery query = Database::prepare("DELETE FROM %1 WHERE id = ?"
+	QSqlQuery query = Database::prepare("UPDATE %1 SET _deleted_ = 1 WHERE id = ?"
 										% m_db.driver()->escapeIdentifier(Common::tableName(table), QSqlDriver::TableName),
 										m_db);
 	query.addBindValue(id);
@@ -213,14 +246,16 @@ Common::Revision DatabaseEngine::delete_(const Common::Table &table, const Commo
 	return revision;
 }
 
-QVector<Common::Record> DatabaseEngine::find(const Common::TableQuery &query)
+QVector<Common::Record> DatabaseEngine::find(const Common::TableQuery &query, const bool includeDeleted)
 {
 	const auto where = whereForQuery(query);
 
+	const QString tableName = m_db.driver()->escapeIdentifier(Common::tableName(query.table()), QSqlDriver::TableName);
 	QSqlQuery sql = Database::prepare(
-				QStringLiteral("SELECT %1.*,(SELECT change.id FROM change WHERE change.record_id = %1.id AND change.record_table = %1 ORDER BY change.id DESC LIMIT 1) AS _latest_revision_ FROM %1 WHERE %2") %
-				m_db.driver()->escapeIdentifier(Common::tableName(query.table()), QSqlDriver::TableName) %
-				where.first,
+				QStringLiteral("SELECT %1.*, (SELECT change.id FROM change WHERE change.record_id = %1.id AND change.record_table = %1 ORDER BY change.id DESC LIMIT 1) AS _latest_revision_ FROM %1 %2 %3") %
+				tableName %
+				where.first %
+				(includeDeleted ? "" : QStringLiteral(" AND %1._deleted_ = 0").arg(tableName)),
 				m_db);
 	for (const QVariant &val : where.second) {
 		sql.addBindValue(val);
@@ -239,7 +274,7 @@ QVector<Common::Record> DatabaseEngine::find(const Common::TableQuery &query)
 				record.setId(sqlRecord.value(i).value<Common::Id>());
 			} else if (sqlRecord.fieldName(i) == "_latest_revision_") {
 				record.setLatestRevision(sqlRecord.value(i).value<Common::Revision>());
-			} else {
+			} else if (!sqlRecord.fieldName(i).startsWith('_')) {
 				values.insert(sqlRecord.fieldName(i), sqlRecord.value(i));
 			}
 		}
@@ -310,6 +345,9 @@ void DatabaseEngine::validateValues(const Common::Record &record, const QSqlReco
 
 	for (int i = 0; i < sqlRecord.count(); ++i) {
 		const QSqlField field = sqlRecord.field(i);
+		if (field.name().startsWith('_')) {
+			continue;
+		}
 		if (field.isAutoValue() && record.values().contains(field.name())) {
 			throw ValidationException(QStringLiteral("Attempting to explicitly set auto-valued field '%1'") % field.name());
 		} else if (field.requiredStatus() == QSqlField::Required && !record.values().contains(field.name()) && strict) {
