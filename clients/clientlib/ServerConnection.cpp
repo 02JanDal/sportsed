@@ -302,7 +302,9 @@ Subscribtion *ServerConnection::subscribe(const Common::ChangeQuery &query)
 	fut.then([this, sub, query](const QJsonObject &obj) {
 		const int subscriptionId = Json::ensureInteger(obj, "subscription");
 		qCInfo(serverConnection) << qPrintable(QStringLiteral("SUBSCRIBEd(%1)").arg(subscriptionId))
-								 << Common::tableName(query.query().table()) << query.query().filters();
+								 << Common::tableName(query.query().table())
+								 << qPrintable(QStringLiteral("fromRev=%1").arg(query.fromRevision()))
+								 << query.query().filters();
 		if (m_pendingSubscriptions.contains(sub)) {
 			m_subscriptions.insert(subscriptionId, sub);
 			m_pendingSubscriptions.removeAll(sub);
@@ -346,6 +348,26 @@ void ServerConnection::received(const QByteArray &msg)
 			const int subscribtion = Json::ensureInteger(obj, "reply_to");
 			const Common::ChangeResponse changes = Json::ensureIsType<Common::ChangeResponse>(obj, "data");
 			if (m_subscriptions.contains(subscribtion)) {
+				qCInfo(serverConnection) << qPrintable(QStringLiteral("SUBDATA(%1)").arg(subscribtion))
+										 << Common::tableName(changes.query().query().table())
+										 << qPrintable(Functional::collection(changes.changes()).map([](const Common::Change &c) {
+					QString type;
+					switch (c.type()) {
+					case Common::Change::Create: type = "create"; break;
+					case Common::Change::Update: type = "update"; break;
+					case Common::Change::Delete: type = "delete"; break;
+					}
+
+					QStringList fields;
+					fields.append("id=" + QString::number(c.record().id()));
+					for (auto it = c.record().values().cbegin(); it != c.record().values().cend(); ++it) {
+						if (it.key().endsWith("id")) {
+							fields.append(it.key() + '=' + it.value().toString());
+						}
+					}
+
+					return QStringLiteral("%1 %2").arg(type, fields.join(" "));
+				}).join(QStringLiteral(", ")));
 				emit m_subscriptions.value(subscribtion)->triggered(changes);
 			}
 		} else if (cmd == "reply" || cmd == "error") {

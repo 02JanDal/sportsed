@@ -30,6 +30,7 @@ void MainWindow::serverConnected()
 				waitFor(conn()->read(Common::Table::Competition, competitionId()), tr("Loading competition"), this),
 				conn());
 	ui->competitionTab->setup(conn(), m_competition);
+	ui->coursesTab->setup(conn(), m_competition);
 }
 void MainWindow::serverDisconnected()
 {

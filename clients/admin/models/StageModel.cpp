@@ -9,7 +9,7 @@ StageModel::StageModel(ServerConnection *conn, const Common::Id competitionId, Q
 {
 	setDefault(Common::Record(table(), {
 								  {"competition_id", competitionId},
-								  {"name", QString()},
+								  {"name", tr("New Stage")},
 								  {"type", "single"},
 								  {"discipline", tr("Middle")},
 								  {"date", QDate::currentDate()},
@@ -33,6 +33,11 @@ QVariant StageModel::value(const Common::Record &record, const int column, const
 	} else {
 		return AbstractRecordModel::value(record, column, role);
 	}
+}
+
+bool StageModel::isEditable(const int) const
+{
+	return true;
 }
 
 }

@@ -34,8 +34,10 @@ public:
 	QVariant data(const QModelIndex &index, int role) const override;
 	bool setData(const QModelIndex &index, const QVariant &value, int role) override;
 	QVariant headerData(int section, Qt::Orientation orientation, int role) const override;
+	Qt::ItemFlags flags(const QModelIndex &index) const override;
 
 	void setDefault(const Common::Record &record);
+	void setDefaultField(const QString &field, const QVariant &value);
 	void setTarget(const QVector<Common::TableFilter> &target);
 	void setTarget(const QString &field, const QVariant &value);
 
@@ -52,6 +54,7 @@ protected:
 	virtual QVariant value(const Common::Record &record, const int column, const int role) const;
 	virtual bool setValue(Common::Record &record, const int column, const QVariant &value, const int role);
 	virtual QVector<int> roleForFields(const QVector<QString> &fields) const;
+	virtual bool isEditable(const int /*column*/) const { return false; }
 
 	void registerField(const int role, const QString &field, const QString &header = QString());
 

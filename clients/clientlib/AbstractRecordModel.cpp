@@ -21,7 +21,7 @@ AbstractRecordModel::AbstractRecordModel(const Common::Table table, const int co
 int AbstractRecordModel::rowCount(const QModelIndex &) const
 {
 	if (!m_subscription && !m_loading) {
-		qWarning() << "Attempting to retrieve data from not yet reload()'d model, did you forget to call reload()?";
+		qWarning() << qPrintable(QStringLiteral("Attempting to retrieve data from not yet reload()'d model, did you forget to call %1::reload()?") % metaObject()->className());
 	}
 	return m_rows.size();
 }
@@ -49,7 +49,8 @@ bool AbstractRecordModel::setData(const QModelIndex &index, const QVariant &valu
 		Common::Record original = m_rows.at(row);
 		if (setValue(m_rows[row], index.column(), value, role)) {
 			const QVector<QString> changed = m_rows.at(row).changesBetween(original);
-			emit dataChanged(this->index(row, 0), this->index(row, m_columns), roleForFields(changed));
+			emit dataChanged(this->index(row, 0), this->index(row, m_columns-1), roleForFields(changed));
+			qDebug() << this->index(row, 0) << this->index(row, m_columns-1) << changed <<roleForFields(changed);
 
 			Common::Record changes(original.table());
 			changes.setId(original.id());
@@ -74,10 +75,23 @@ QVariant AbstractRecordModel::headerData(int section, Qt::Orientation orientatio
 	}
 }
 
+Qt::ItemFlags AbstractRecordModel::flags(const QModelIndex &index) const
+{
+	if (isEditable(index.column())) {
+		return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable;
+	} else {
+		return Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+	}
+}
+
 void AbstractRecordModel::setDefault(const Common::Record &record)
 {
 	Q_ASSERT_X(record.table() == m_table, "AbstractRecordModel::setDefault", "default record has wrong table");
 	m_defaultRecord = record;
+}
+void AbstractRecordModel::setDefaultField(const QString &field, const QVariant &value)
+{
+	m_defaultRecord.setValue(field, value);
 }
 
 void AbstractRecordModel::setTarget(const QVector<Common::TableFilter> &target)
@@ -128,6 +142,7 @@ void AbstractRecordModel::reload()
 
 	m_loading = true;
 	emit loadingChanged(m_loading);
+
 	m_conn->find(Common::TableQuery(m_table, m_target)).then([this](const QVector<Common::Record> &records) {
 		m_loading = false;
 		emit loadingChanged(m_loading);
@@ -135,7 +150,9 @@ void AbstractRecordModel::reload()
 		m_rows = records;
 		endResetModel();
 
-		const Common::Revision latest = std::max_element(m_rows.cbegin(), m_rows.cend(), [](const Common::Record &a, const Common::Record &b) {
+		const Common::Revision latest = m_rows.isEmpty() ? 0
+														 : std::max_element(m_rows.cbegin(), m_rows.cend(),
+																			[](const Common::Record &a, const Common::Record &b) {
 			return a.latestRevision() < b.latestRevision();
 		})->latestRevision();
 

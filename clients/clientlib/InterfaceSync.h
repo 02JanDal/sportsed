@@ -14,6 +14,7 @@ class QAbstractItemView;
 class QCheckBox;
 class QRadioButton;
 class QPushButton;
+class QWidget;
 class QVariant;
 
 namespace Sportsed {

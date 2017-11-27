@@ -24,6 +24,7 @@ public:
 
 private:
 	QVariant value(const Common::Record &record, const int column, const int role) const override;
+	bool isEditable(const int) const override;
 };
 
 }

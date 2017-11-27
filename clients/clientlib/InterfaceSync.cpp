@@ -13,6 +13,12 @@
 #include <QPushButton>
 #include <QMessageBox>
 #include <QApplication>
+#include <QAbstractProxyModel>
+
+#include <jd-util-gui/ModelUtil.h>
+#include <jd-util/MultiLevelModel.h>
+#include <jd-util/Util.h>
+#include <jd-util/Functional.h>
 
 #include "RecordObject.h"
 #include "AbstractRecordModel.h"
@@ -32,6 +38,44 @@ static void setWidgetValue(QComboBox *widget, const QVariant &value)
 			widget->setCurrentIndex(index);
 		}
 	}
+}
+
+static inline std::tuple<JD::Util::MultiLevelModel *, AbstractRecordModel *> extractModels(QAbstractItemModel *leaf)
+{
+	using JD::Util::MultiLevelModel;
+
+	MultiLevelModel *mlm;
+	AbstractRecordModel *model;
+	if (leaf->property("multiLevelModel").isValid()) {
+		// case B: part of a MultiLevelModel
+		mlm = leaf->property("multiLevelModel").value<MultiLevelModel *>();
+		model = qobject_cast<AbstractRecordModel *>(mlm->source());
+		qDebug() << model << mlm << mlm->source();
+	} else if (leaf->metaObject()->inherits(&QAbstractProxyModel::staticMetaObject)) {
+		// case A: generic proxy model
+		QAbstractProxyModel *proxy = qobject_cast<QAbstractProxyModel *>(leaf);
+		mlm = new MultiLevelModel(proxy->sourceModel());
+		mlm->append(proxy);
+		model = qobject_cast<AbstractRecordModel *>(proxy->sourceModel());
+	} else {
+		// case C: plain model
+		mlm = new MultiLevelModel(leaf);
+		model = qobject_cast<AbstractRecordModel *>(leaf);
+	}
+	Q_ASSERT_X(model, "ViewSync::buttons", "view with invalid type of model given");
+	return std::make_tuple(mlm, model);
+}
+static inline void buttonsInternal(QAbstractItemModel *leaf, QWidget *widget, QPushButton *add)
+{
+	QObject::connect(add, &QPushButton::clicked, leaf, [leaf, widget]() {
+		JD::Util::MultiLevelModel *mlm;
+		AbstractRecordModel *model;
+		std::tie(mlm, model) = extractModels(leaf);
+
+		ClientMainWindow::waitFor(model->add(),
+								  QApplication::translate("ViewSync", "Adding record..."),
+								  widget);
+	});
 }
 
 template <typename Widget, typename Getter, typename Setter>
@@ -95,6 +139,7 @@ static inline void setupComboBoxSync(QComboBox *view, const int role, Widget *wi
 namespace ViewSync {
 void sync(QAbstractItemView *view, const int role, QLabel *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupViewSync(
 				view, role, widget,
 				[widget]() { return widget->text(); },
@@ -103,6 +148,7 @@ void sync(QAbstractItemView *view, const int role, QLabel *widget)
 }
 void sync(QAbstractItemView *view, const int role, QLineEdit *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupViewSync(
 				view, role, widget,
 				[widget]() { return widget->text(); },
@@ -112,6 +158,7 @@ void sync(QAbstractItemView *view, const int role, QLineEdit *widget)
 }
 void sync(QAbstractItemView *view, const int role, QDateTimeEdit *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupViewSync(
 				view, role, widget,
 				[widget]() { return widget->dateTime(); },
@@ -121,6 +168,7 @@ void sync(QAbstractItemView *view, const int role, QDateTimeEdit *widget)
 }
 void sync(QAbstractItemView *view, const int role, QSpinBox *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupViewSync(
 				view, role, widget,
 				[widget]() { return widget->value(); },
@@ -130,6 +178,7 @@ void sync(QAbstractItemView *view, const int role, QSpinBox *widget)
 }
 void sync(QAbstractItemView *view, const int role, QComboBox *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupViewSync(
 				view, role, widget,
 				[widget]() { return widget->isEditable() ? widget->currentText() : widget->currentData(); },
@@ -145,6 +194,7 @@ void sync(QAbstractItemView *view, const int role, QComboBox *widget)
 }
 void sync(QAbstractItemView *view, const int role, QCheckBox *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupViewSync(
 				view, role, widget,
 				[widget]() { return widget->isChecked(); },
@@ -155,6 +205,7 @@ void sync(QAbstractItemView *view, const int role, QCheckBox *widget)
 
 void sync(QComboBox *view, const int role, QLabel *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupComboBoxSync(
 				view, role, widget,
 				[widget]() { return widget->text(); },
@@ -163,6 +214,7 @@ void sync(QComboBox *view, const int role, QLabel *widget)
 }
 void sync(QComboBox *view, const int role, QLineEdit *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupComboBoxSync(
 				view, role, widget,
 				[widget]() { return widget->text(); },
@@ -172,6 +224,7 @@ void sync(QComboBox *view, const int role, QLineEdit *widget)
 }
 void sync(QComboBox *view, const int role, QDateTimeEdit *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupComboBoxSync(
 				view, role, widget,
 				[widget]() { return widget->dateTime(); },
@@ -181,6 +234,7 @@ void sync(QComboBox *view, const int role, QDateTimeEdit *widget)
 }
 void sync(QComboBox *view, const int role, QSpinBox *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupComboBoxSync(
 				view, role, widget,
 				[widget]() { return widget->value(); },
@@ -190,6 +244,7 @@ void sync(QComboBox *view, const int role, QSpinBox *widget)
 }
 void sync(QComboBox *view, const int role, QComboBox *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupComboBoxSync(
 				view, role, widget,
 				[widget]() { return widget->isEditable() ? widget->currentText() : widget->currentData(); },
@@ -205,6 +260,7 @@ void sync(QComboBox *view, const int role, QComboBox *widget)
 }
 void sync(QComboBox *view, const int role, QCheckBox *widget)
 {
+	JD::Util::enableIfHasSelection(view, widget);
 	detail::setupComboBoxSync(
 				view, role, widget,
 				[widget]() { return widget->isChecked(); },
@@ -250,6 +306,10 @@ private:
 
 void sync(QAbstractItemView *view, const int role, const QHash<QRadioButton *, QVariant> &widgets)
 {
+	for (QRadioButton *widget : widgets.keys()) {
+		JD::Util::enableIfHasSelection(view, widget);
+	}
+
 	RadioButtonsProxy *proxy = new RadioButtonsProxy(widgets, view);
 
 	detail::setupViewSync(
@@ -261,6 +321,10 @@ void sync(QAbstractItemView *view, const int role, const QHash<QRadioButton *, Q
 }
 void sync(QComboBox *view, const int role, const QHash<QRadioButton *, QVariant> &widgets)
 {
+	for (QRadioButton *widget : widgets.keys()) {
+		JD::Util::enableIfHasSelection(view, widget);
+	}
+
 	RadioButtonsProxy *proxy = new RadioButtonsProxy(widgets, view);
 
 	detail::setupComboBoxSync(
@@ -271,47 +335,51 @@ void sync(QComboBox *view, const int role, const QHash<QRadioButton *, QVariant>
 	);
 }
 
-static inline void buttonsInternal(AbstractRecordModel *model, QWidget *widget, QPushButton *add)
-{
-	QObject::connect(add, &QPushButton::clicked, model, [model, widget]() {
-		ClientMainWindow::waitFor(model->add(),
-								  QApplication::translate("ViewSync", "Adding record..."),
-								  widget);
-	});
-}
 void buttons(QAbstractItemView *view, QPushButton *add, QPushButton *remove)
 {
-	AbstractRecordModel *model = qobject_cast<AbstractRecordModel *>(view->model());
-	Q_ASSERT_X(model, "ViewSync::buttons", "view with invalid type of model given");
+	JD::Util::enableIfHasSelection(view, remove);
 
-	buttonsInternal(model, view, add);
-	QObject::connect(remove, &QPushButton::clicked, model, [model, view]() {
+	detail::buttonsInternal(view->model(), view, add);
+	QObject::connect(remove, &QPushButton::clicked, view, [view]() {
+		const int numRecords = view->selectionModel()->selectedRows().size();
 		const int ans = QMessageBox::question(view,
 											  QApplication::translate("ViewSync", "Really remove?"),
-											  QApplication::translate("ViewSync", "You are about to remove %1 records. Proceed?").arg(view->selectionModel()->selectedRows().size()));
+											  QApplication::translate("ViewSync",
+																	  "You are about to remove %n record(s). Proceed?",
+																	  nullptr,
+																	  numRecords));
 		if (ans == QMessageBox::Yes) {
-			while (view->selectionModel()->hasSelection()) {
-				model->remove(view->selectionModel()->selectedRows().first());
+			JD::Util::MultiLevelModel *mlm;
+			AbstractRecordModel *model;
+			std::tie(mlm, model) = detail::extractModels(view->model());
+
+			const auto indices =
+					JD::Util::Functional::map2<QVector<QPersistentModelIndex>>(view->selectionModel()->selectedRows(),
+																			   [](const QModelIndex &i) { return QPersistentModelIndex(i); });
+			for (const QPersistentModelIndex &index : indices) {
+				model->remove(mlm->mapToSource(index));
 			}
 		}
 	});
 }
 void buttons(QComboBox *view, QPushButton *add, QPushButton *remove)
 {
-	AbstractRecordModel *model = qobject_cast<AbstractRecordModel *>(view->model());
-	Q_ASSERT_X(model, "ViewSync::buttons", "view with invalid type of model given");
+	JD::Util::enableIfHasSelection(view, remove);
 
-	buttonsInternal(model, view, add);
-	QObject::connect(remove, &QPushButton::clicked, model, [model, view]() {
+	detail::buttonsInternal(view->model(), view, add);
+	QObject::connect(remove, &QPushButton::clicked, view, [view]() {
 		const int ans = QMessageBox::question(view,
 											  QApplication::translate("ViewSync", "Really remove?"),
-											  QApplication::translate("ViewSync", "You are about to remove a records. Proceed?"));
+											  QApplication::translate("ViewSync", "You are about to remove a record. Proceed?"));
 		if (ans == QMessageBox::Yes) {
-			model->remove(model->index(view->currentIndex()));
+			JD::Util::MultiLevelModel *mlm;
+			AbstractRecordModel *model;
+			std::tie(mlm, model) = detail::extractModels(view->model());
+
+			model->remove(mlm->mapToSource(view->model()->index(view->currentIndex(), 0)));
 		}
 	});
 }
-
 }
 
 namespace ItemSync {
