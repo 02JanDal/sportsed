@@ -47,7 +47,7 @@ set(JD_UTIL_CATCH_LIB CONAN_PKG::catch)
 configure_file(${CMAKE_SOURCE_DIR}/config.h.in ${CMAKE_BINARY_DIR}/config.h @ONLY)
 
 include_directories(${CMAKE_SOURCE_DIR})
-set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Weverything -Werror -Wno-padded -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-switch-enum -Wno-undefined-reinterpret-cast -Wno-exit-time-destructors -Wno-gnu-zero-variadic-macro-arguments -Wno-weak-vtables")
+set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -Wall -Wextra -Weverything -Werror -Wno-padded -Wno-c++98-compat -Wno-c++98-compat-pedantic -Wno-switch-enum -Wno-undefined-reinterpret-cast -Wno-exit-time-destructors -Wno-gnu-zero-variadic-macro-arguments -Wno-weak-vtables -Wno-global-constructors")
 append_if_valid_cxx_flag(nounusedtemplate "-Wno-unused-template" CMAKE_CXX_FLAGS_DEBUG)
 
 function(fix_osx_rpath)

@@ -25,6 +25,9 @@
         <property name="text">
          <string>State:</string>
         </property>
+        <property name="buddy">
+         <cstring>resultStateBox</cstring>
+        </property>
        </widget>
       </item>
       <item row="0" column="1">
@@ -61,6 +64,9 @@
         <property name="text">
          <string>Start:</string>
         </property>
+        <property name="buddy">
+         <cstring>resultStartEdit</cstring>
+        </property>
        </widget>
       </item>
       <item row="1" column="1">
@@ -75,12 +81,18 @@
         <property name="text">
          <string>Finish:</string>
         </property>
+        <property name="buddy">
+         <cstring>resultFinishEdit</cstring>
+        </property>
        </widget>
       </item>
       <item row="3" column="0">
        <widget class="QLabel" name="label_9">
         <property name="text">
          <string>Time:</string>
+        </property>
+        <property name="buddy">
+         <cstring>resultTimeEdit</cstring>
         </property>
        </widget>
       </item>
@@ -179,6 +191,9 @@
         <property name="text">
          <string>Name:</string>
         </property>
+        <property name="buddy">
+         <cstring>nameEdit</cstring>
+        </property>
        </widget>
       </item>
       <item row="0" column="1">
@@ -189,6 +204,9 @@
         <property name="text">
          <string>Club:</string>
         </property>
+        <property name="buddy">
+         <cstring>clubBox</cstring>
+        </property>
        </widget>
       </item>
       <item row="1" column="1">
@@ -198,6 +216,9 @@
        <widget class="QLabel" name="label_3">
         <property name="text">
          <string>YoB:</string>
+        </property>
+        <property name="buddy">
+         <cstring>yobEdit</cstring>
         </property>
        </widget>
       </item>
@@ -216,6 +237,9 @@
         <property name="text">
          <string>Bib:</string>
         </property>
+        <property name="buddy">
+         <cstring>bibEdit</cstring>
+        </property>
        </widget>
       </item>
       <item row="3" column="1">
@@ -225,6 +249,9 @@
        <widget class="QLabel" name="label_5">
         <property name="text">
          <string>Card:</string>
+        </property>
+        <property name="buddy">
+         <cstring>cardEdit</cstring>
         </property>
        </widget>
       </item>
@@ -242,12 +269,18 @@
         <property name="text">
          <string>Class:</string>
         </property>
+        <property name="buddy">
+         <cstring>classBox</cstring>
+        </property>
        </widget>
       </item>
       <item row="7" column="0">
        <widget class="QLabel" name="label_11">
         <property name="text">
          <string>Course:</string>
+        </property>
+        <property name="buddy">
+         <cstring>courseBox</cstring>
         </property>
        </widget>
       </item>
@@ -258,6 +291,9 @@
        <widget class="QLabel" name="label_12">
         <property name="text">
          <string>Team:</string>
+        </property>
+        <property name="buddy">
+         <cstring>teamBox</cstring>
         </property>
        </widget>
       </item>
